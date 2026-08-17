@@ -135,6 +135,18 @@ gone. Two consequences worth knowing:
 - **Formulae for private repositories were dropped**, because a public tap that
   serves one hands every stranger a 404. The old tap is recoverable from the
   backup bundle under `~/Work/backups/` if one is ever needed again.
+- **Never `git push origin main` from the Homebrew tap directory.** Homebrew
+  keeps its tap clones on a detached HEAD, and the local `main` ref there can be
+  stale — pushing it sends an old commit, not your work, and the rejection reads
+  as "behind its remote counterpart" even though your commit is cleanly ahead.
+  Either push `HEAD:main` or, better, work in an ordinary clone.
+- **Homebrew 6 will not install from an untrusted third-party tap.**
+  `brew tap ssmule/tap && brew install copilot-sessions` is refused outright;
+  the fully-qualified `brew install ssmule/tap/copilot-sessions` works cold,
+  because naming the tap is itself the trust signal. That is why the READMEs
+  lead with the long form. The escape hatch is `brew trust ssmule/tap`. Test
+  install instructions from a genuinely untapped state or this stays invisible:
+  once a machine has installed the formula the two-step appears to work.
 
 ## 2 · What shipped, and the decision behind each
 
