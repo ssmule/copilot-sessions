@@ -1,0 +1,97 @@
+name: Bug report
+description: Something rendered wrong, counted wrong, or fell over.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report.
+
+        **If this is a security problem — a credential reaching the screen
+        unmasked, or escape sequences from stored text — stop here** and use
+        [SECURITY.md](https://github.com/ssmule/copilot-sessions/blob/main/SECURITY.md)
+        instead. Those are reported privately.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The exact command
+      description: Copy the whole line, including any flags.
+      render: shell
+      placeholder: cs cost 30
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: What it printed
+      description: |
+        **Paste the output as text rather than describing it** — it is
+        searchable, diffable, and shows the exact spacing. A screenshot is
+        welcome too, but the text is what gets the fix written.
+
+        Credentials are masked on the way out, so pasted output is safe. If
+        you have `CS_REDACT=0` set, unset it before copying.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: cs version
+      description: Output of `cs --version`.
+      placeholder: cs 1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Output of `python3 --version`.
+      placeholder: Python 3.12.4
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal and width
+      description: |
+        Which terminal, and how wide. Width matters more than you would think —
+        most layout bugs only appear at a particular column count. `tput cols`
+        will tell you.
+      placeholder: iTerm2 on macOS, 92 columns
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem is it?
+      options:
+        - Rendering — wrong layout, spacing, colour or missing glyphs
+        - Numbers — a count or cost looks wrong
+        - Crash — a traceback or a hang
+        - Interactive UI — keys, mouse or navigation
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: |
+        Optional. If a number looks wrong, note when you ran it — the session
+        store changes while you read it, so two readings taken minutes apart
+        will legitimately differ.

@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# cs runtime state (never commit — it references local session ids)
+.cs-last-index
+.cs-ignore
+
+# Local working notes. docs/HANDOVER.md is the published handover and stays
+# public-safe; anything that has to name a real path, a real session or a
+# local backup goes in a *.local.md beside it and is never committed.
+*.local.md
+
+# OS
+.DS_Store
+
+# Local task-tracking tooling. Beads (bd) is a personal workflow choice, not a
+# requirement for working on cs — the issue tracker for this project is GitHub
+# Issues, and CONTRIBUTING.md is the contract. Keeping bd's state out of the
+# repo means a fresh clone never inherits a tracker it cannot open: bd stores
+# issues in an embedded Dolt database that is itself ignored, so the committed
+# files were only ever a stale husk pointing at a database nobody else had.
+.beads/
+.agents/skills/beads/
+.copilot-plugin/
+.dolt/
+*.db
+.beads-credential-key
+
+# Per-assistant config that only describes one machine's tooling. AGENTS.md is
+# the brief every agent reads and is tracked; these are unfilled scaffolds that
+# duplicate it, and CLAUDE.md still carries the beads block whose database is
+# ignored above — committing it would hand a clone a tracker it cannot open.
+.claude/
+.codex/
+CLAUDE.md
+
+# Local presentation artwork. The deck ships original artwork (docs/deck/
+# poster.svg) because this repository is MIT-licensed and cannot redistribute
+# a film's own poster. Presenting is not publishing, so index.html will pick up
+# a poster.local.<ext> placed beside it — ignored here so that a licensed or
+# personal image used on stage can never be committed by accident. Git makes
+# that mistake expensive: a pushed blob stays fetchable at its old SHA even
+# after a later commit removes the file.
+docs/deck/poster.local.*

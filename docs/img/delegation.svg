@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="765" height="678" viewBox="0 0 765 678" role="img" aria-label="cs agents 30">
+  <rect width="765" height="678" rx="10" fill="#14161c"/>
+  <rect width="765" height="34.0" rx="10" fill="#1d2029"/>
+  <rect y="24.0" width="765" height="10" fill="#1d2029"/>
+  <circle cx="22" cy="17" r="6" fill="#ff5f56"/><circle cx="40" cy="17" r="6" fill="#ffbd2e"/><circle cx="58" cy="17" r="6" fill="#27c93f"/>
+  <text x="382" y="22" fill="#8b93a7" font-size="12" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">cs agents 30</text>
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="13.5">
+    <text x="34.2" y="66.0" fill="#00afff" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──</text>
+    <text x="58.5" y="66.0" fill="#e6e6e6" font-weight="600" textLength="202.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Delegation · last 30 days</text>
+    <text x="269.1" y="66.0" fill="#4e4e4e" textLength="477.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────</text>
+    <text x="34.2" y="104.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">sessions </text>
+    <text x="107.1" y="104.0" fill="#e6e6e6" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">42</text>
+    <text x="34.2" y="123.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">calls    </text>
+    <text x="107.1" y="123.0" fill="#e6e6e6" textLength="24.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">243</text>
+    <text x="34.2" y="142.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">tasks    </text>
+    <text x="107.1" y="142.0" fill="#e6e6e6" textLength="186.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">22 handed to sub-agents</text>
+    <text x="34.2" y="161.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">spend    </text>
+    <text x="107.1" y="161.0" fill="#e6e6e6" textLength="56.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">308 AIU</text>
+    <text x="34.2" y="199.0" fill="#00afff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="199.0" fill="#e6e6e6" font-weight="600" textLength="178.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Who initiated the work</text>
+    <text x="228.6" y="199.0" fill="#4e4e4e" textLength="502.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="218.0" fill="#8a8a8a" textLength="364.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">who            calls     spend share sessions</text>
+    <text x="50.4" y="237.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="256.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">you         </text>
+    <text x="147.6" y="256.0" fill="#e6e6e6" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     179 </text>
+    <text x="220.5" y="256.0" fill="#d787ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">      246</text>
+    <text x="301.5" y="256.0" fill="#8a8a8a" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  80%</text>
+    <text x="350.1" y="256.0" fill="#8a8a8a" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">      42</text>
+    <text x="423.0" y="256.0" fill="#00ffaf" textLength="324.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">████████████████████████████████████████</text>
+    <text x="50.4" y="275.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">sub-agents  </text>
+    <text x="147.6" y="275.0" fill="#e6e6e6" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">      22 </text>
+    <text x="220.5" y="275.0" fill="#d787ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     39.7</text>
+    <text x="301.5" y="275.0" fill="#8a8a8a" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  13%</text>
+    <text x="350.1" y="275.0" fill="#8a8a8a" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">      22</text>
+    <text x="423.0" y="275.0" fill="#d787ff" textLength="324.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">████                                    </text>
+    <text x="50.4" y="294.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">compaction  </text>
+    <text x="147.6" y="294.0" fill="#e6e6e6" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">      42 </text>
+    <text x="220.5" y="294.0" fill="#d787ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     22.1</text>
+    <text x="301.5" y="294.0" fill="#8a8a8a" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">   7%</text>
+    <text x="350.1" y="294.0" fill="#8a8a8a" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">      42</text>
+    <text x="423.0" y="294.0" fill="#ffaf00" textLength="324.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">█████████                               </text>
+    <text x="34.2" y="332.0" fill="#8a8a8a" textLength="712.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">A 'task' is one delegation. The store records no agent name — agent_id is the delegating</text>
+    <text x="34.2" y="351.0" fill="#8a8a8a" textLength="105.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">tool-call id.</text>
+    <text x="34.2" y="389.0" fill="#d787ff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="389.0" fill="#e6e6e6" font-weight="600" textLength="218.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Sessions that delegate most</text>
+    <text x="269.1" y="389.0" fill="#4e4e4e" textLength="461.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">─────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="408.0" fill="#8a8a8a" textLength="251.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">session    calls  tasks summary</text>
+    <text x="50.4" y="427.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="446.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">00000029 </text>
+    <text x="131.4" y="446.0" fill="#d787ff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="188.1" y="446.0" fill="#00afff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="236.7" y="446.0" fill="#e6e6e6" textLength="267.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Add checkout validation · part 9</text>
+    <text x="50.4" y="465.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">00000028 </text>
+    <text x="131.4" y="465.0" fill="#d787ff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="188.1" y="465.0" fill="#00afff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="236.7" y="465.0" fill="#e6e6e6" textLength="332.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Build the customer portal shell · part 9</text>
+    <text x="50.4" y="484.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">00000023 </text>
+    <text x="131.4" y="484.0" fill="#d787ff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="188.1" y="484.0" fill="#00afff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="236.7" y="484.0" fill="#e6e6e6" textLength="332.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Build the customer portal shell · part 8</text>
+    <text x="50.4" y="503.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">00000022 </text>
+    <text x="131.4" y="503.0" fill="#d787ff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="188.1" y="503.0" fill="#00afff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="236.7" y="503.0" fill="#e6e6e6" textLength="291.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Write the onboarding guide · part 7</text>
+    <text x="50.4" y="522.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">00000021 </text>
+    <text x="131.4" y="522.0" fill="#d787ff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="188.1" y="522.0" fill="#00afff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="236.7" y="522.0" fill="#e6e6e6" textLength="307.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Migrate CI to GitHub Actions · part 7</text>
+    <text x="50.4" y="541.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">00000020 </text>
+    <text x="131.4" y="541.0" fill="#d787ff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="188.1" y="541.0" fill="#00afff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="236.7" y="541.0" fill="#e6e6e6" textLength="267.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Fix flaky payment tests · part 7</text>
+    <text x="50.4" y="560.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">0000001f </text>
+    <text x="131.4" y="560.0" fill="#d787ff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="188.1" y="560.0" fill="#00afff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="236.7" y="560.0" fill="#e6e6e6" textLength="267.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Add checkout validation · part 7</text>
+    <text x="50.4" y="579.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">0000001a </text>
+    <text x="131.4" y="579.0" fill="#d787ff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="188.1" y="579.0" fill="#00afff" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     1</text>
+    <text x="236.7" y="579.0" fill="#e6e6e6" textLength="267.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Add checkout validation · part 6</text>
+    <text x="50.4" y="617.0" fill="#8a8a8a" textLength="283.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">cs show &lt;id&gt; — one session's ledger</text>
+    <text x="34.2" y="655.0" fill="#8a8a8a" textLength="656.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Compaction is context being re-summarised: 42 events cost 22.1 AIU (7% of spend).</text>
+  </g>
+</svg>

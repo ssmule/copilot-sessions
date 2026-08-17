@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1400" width="1000" height="1400"
+     role="img" aria-labelledby="t d">
+  <title id="t">Memento (2000) — an original tribute poster</title>
+  <desc id="d">Three instant photographs stacked and tilted. The furthest is blank, the
+  middle half legible, the nearest clearly captioned "DON'T FORGET" — a memory decaying from
+  record to nothing.</desc>
+
+  <!-- Original artwork drawn for this deck. It deliberately shares no composition,
+       type or imagery with the film's marketing: the metaphor (a written record
+       fading until it is unreadable) is the deck's own argument about sessions. -->
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#121216"/>
+      <stop offset="55%" stop-color="#0a0a0c"/>
+      <stop offset="1" stop-color="#000"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="50%" cy="34%" r="58%">
+      <stop offset="0" stop-color="#e6a664" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#e6a664" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- the "scene" inside a photo: a doorway of warm light, abstract on purpose -->
+    <linearGradient id="scene" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2c1d"/>
+      <stop offset="1" stop-color="#0d0b09"/>
+    </linearGradient>
+    <linearGradient id="door" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4d9b0" stop-opacity=".92"/>
+      <stop offset="1" stop-color="#e6a664" stop-opacity=".05"/>
+    </linearGradient>
+
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2efe7"/>
+      <stop offset="1" stop-color="#d9d4c7"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="26" stdDeviation="26" flood-color="#000" flood-opacity=".72"/>
+    </filter>
+
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+
+    <!-- one photograph. Everything that differs between the three is a parameter
+         of the group that uses it, so the decay is honest geometry, not three drawings. -->
+    <g id="frame">
+      <rect width="340" height="410" rx="5" fill="url(#paper)"/>
+      <rect x="20" y="20" width="300" height="300" fill="url(#scene)"/>
+      <rect x="20" y="20" width="300" height="300" fill="#000" opacity=".25"/>
+    </g>
+  </defs>
+
+  <rect width="1000" height="1400" fill="url(#bg)"/>
+  <rect width="1000" height="1400" fill="url(#glow)"/>
+
+  <!-- eyebrow -->
+  <text x="80" y="96" fill="#8b8781" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+        font-size="21" letter-spacing="5.5">THE BEST MOVIE ON CONTEXT ENGINEERING</text>
+  <line x1="80" y1="128" x2="920" y2="128" stroke="#2a2a2e" stroke-width="1"/>
+
+  <!-- ── the stack: furthest gone, nearest still readable ── -->
+
+  <!-- Each photo is positioned by its centre, then rotated about it, then pulled
+       back by half its size — rotating about a corner throws the stack off-axis. -->
+
+  <!-- 3 · the memory that is already lost -->
+  <g transform="translate(320,540) rotate(-16) translate(-170,-205)" opacity=".3" filter="url(#shadow)">
+    <use href="#frame"/>
+    <!-- captions on the buried photos are anchored to their outer edge, so what
+         survives the overlap is the writing rather than a clipped fragment of it -->
+    <g stroke="#b9b3a5" stroke-width="7" stroke-linecap="round">
+      <line x1="26" y1="352" x2="150" y2="352"/>
+      <line x1="26" y1="380" x2="96" y2="380"/>
+    </g>
+  </g>
+
+  <!-- 2 · half of it still there -->
+  <g transform="translate(684,556) rotate(13) translate(-170,-205)" opacity=".55" filter="url(#shadow)">
+    <use href="#frame"/>
+    <rect x="128" y="150" width="84" height="170" fill="url(#door)" opacity=".45"/>
+    <text x="322" y="382" text-anchor="end" fill="#3d3a33" font-size="42"
+          font-family="'Bradley Hand','Segoe Script','Brush Script MT',cursive"
+          transform="rotate(-1.5 322 382)"><tspan opacity=".3">REMEM</tspan>BER</text>
+  </g>
+
+  <!-- 1 · the note that still works -->
+  <g transform="translate(500,548) rotate(-3.5) translate(-170,-205)" filter="url(#shadow)">
+    <use href="#frame"/>
+    <rect x="130" y="128" width="80" height="192" fill="url(#door)"/>
+    <rect x="130" y="128" width="80" height="192" fill="none" stroke="#f4d9b0" stroke-opacity=".3"/>
+    <text x="170" y="384" text-anchor="middle" fill="#1d1b17" font-size="46"
+          font-family="'Bradley Hand','Segoe Script','Brush Script MT',cursive"
+          transform="rotate(-2 170 384)">DON'T FORGET</text>
+  </g>
+
+  <!-- ── title block ── -->
+  <text x="500" y="958" text-anchor="middle" fill="#a9a49b"
+        font-family="Georgia,'Times New Roman',serif" font-style="italic" font-size="31">
+    he writes down what he cannot afford to forget
+  </text>
+
+  <line x1="440" y1="1006" x2="560" y2="1006" stroke="#e6a664" stroke-width="2"/>
+
+  <text x="500" y="1150" text-anchor="middle" fill="#f2f1ee"
+        font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-weight="700"
+        font-size="146" letter-spacing="4">MEMENTO</text>
+
+  <text x="500" y="1212" text-anchor="middle" fill="#e6a664"
+        font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+        font-size="22" letter-spacing="9">CHRISTOPHER NOLAN · 2000</text>
+
+  <!-- film grain, last so it sits over everything -->
+  <rect width="1000" height="1400" filter="url(#grain)" opacity=".045"/>
+</svg>

@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copilot Sessions — Now it remembers</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23e6a664'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --ink:#0a0a0b;
+    --panel:#111114;
+    --line:rgba(255,255,255,.10);
+    --line-2:rgba(255,255,255,.18);
+    --fg:#f2f1ee;
+    --fg-dim:#b0afab;
+    --fg-faint:#84837e;
+    --accent:#e6a664;      /* memento amber */
+    --accent-2:#7c6cf2;    /* product violet */
+    --accent-3:#64c8e6;
+    --green:#3ba55d;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+
+    /* One type scale for both slides. Slide 1's body copy had drifted to
+       12–14px while slide 2 ran at 19–30px: legible on the laptop it was
+       written on, gone by the third row of a large room. Named here so the
+       two slides cannot drift apart again — change the scale, not a rule.
+       Each size takes the smaller of a width and a height measure: a
+       projector is often wide and short (1280x720, 1366x768), and type sized
+       on width alone pushes the last line of slide 1 under the chrome. */
+    --t-label:clamp(10px,min(.88vw,1.5vh),13px);   /* mono section labels */
+    --t-body:clamp(13px,min(1.18vw,1.95vh),18px);  /* supporting copy */
+    --t-lead:clamp(15px,min(1.5vw,2.45vh),23px);   /* lines the room must read */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--ink);color:var(--fg);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;overflow:hidden;
+    text-rendering:optimizeLegibility;font-optical-sizing:auto;
+  }
+
+  /* ── deck mechanics ─────────────────────────────── */
+  .deck{position:relative;width:100vw;height:100vh}
+  .slide{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    padding:clamp(28px,4.2vh,56px) clamp(32px,5vw,88px) clamp(74px,8vh,92px);
+    opacity:0;visibility:hidden;transform:translateY(14px);
+    transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1),visibility .5s;
+  }
+  .slide.active{opacity:1;visibility:visible;transform:none}
+
+  .chrome{
+    position:fixed;left:0;right:0;bottom:0;height:56px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 clamp(32px,5vw,88px);
+    font:500 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;
+    color:var(--fg-faint);pointer-events:none;z-index:20;
+  }
+  .chrome .nav{pointer-events:auto;display:flex;gap:8px}
+  .chrome button{
+    all:unset;cursor:pointer;padding:6px 10px;border:1px solid var(--line);
+    border-radius:6px;color:var(--fg-dim);font:500 12px/1 var(--mono);
+  }
+  .chrome button:hover{border-color:var(--line-2);color:var(--fg)}
+  .progress{position:fixed;top:0;left:0;height:2px;background:var(--accent);
+    width:50%;transition:width .5s cubic-bezier(.2,.7,.2,1);z-index:30}
+
+  /* ── shared type ────────────────────────────────── */
+  .eyebrow{
+    font:600 11px/1 var(--mono);letter-spacing:.24em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:clamp(14px,2.2vh,26px);
+    display:flex;align-items:center;gap:12px;
+  }
+  .eyebrow::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line-2),transparent)}
+  h1{
+    font-size:clamp(28px,min(4.4vw,6.6vh),60px);line-height:1.03;letter-spacing:-.028em;
+    font-weight:680;text-wrap:balance;
+  }
+  h1 em{font-style:normal;color:var(--accent)}
+  .sub{
+    margin-top:clamp(12px,1.8vh,20px);font-size:clamp(14px,min(1.28vw,2.1vh),19px);
+    line-height:1.55;color:var(--fg-dim);max-width:56ch;text-wrap:pretty;
+  }
+  .sub strong{color:var(--fg);font-weight:600}
+  /* the product name is the answer to slide 1 — a marquee chip on its own
+     line, sized to be read from the back row */
+  .s2-head .sub strong{
+    display:inline-block;color:#ffd9a8;font-weight:700;font-size:1.45em;
+    letter-spacing:-.01em;line-height:1.2;
+    background:rgba(230,166,100,.14);border:1px solid rgba(230,166,100,.5);
+    border-radius:10px;padding:.18em .6em;margin-bottom:.45em;
+    box-shadow:0 0 32px -6px rgba(230,166,100,.45);
+  }
+  .s2-head .sub strong code{color:inherit}
+
+  /* ── slide 1 ────────────────────────────────────── */
+  .s1{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);
+      gap:clamp(28px,3.6vw,64px);align-items:center;height:100%}
+  .shot{
+    position:relative;justify-self:center;
+    max-height:calc(100vh - 150px);
+    display:grid;grid-template-rows:auto minmax(0,1fr);gap:clamp(12px,1.8vh,20px);
+  }
+  /* Slide 1's visual anchor. The artwork is ours (docs/deck/poster.svg) rather
+     than the film's own poster, which is somebody else's copyright and cannot
+     ship in a public MIT repo — naming a film and describing it is commentary,
+     reproducing its marketing is not. Vector, so it stays sharp on a projector
+     and costs ~5KB instead of the 167KB of base64 it replaced.
+     The frame lives on the image, not on the figure, so the caption above it
+     stands on the slide rather than inside the border. The figure is a grid
+     with the caption in its own auto row: capping image and figure separately
+     in vh let the two disagree, and at 1080p the poster grew over its own
+     caption. The caption row is first and the artwork second because they are
+     two beats now — the claim lands, the room guesses, and the poster answers
+     on the next keypress. The row is sized before the image reveals, so the
+     caption does not move when it arrives. */
+  .poster{
+    display:block;margin:0 auto;align-self:center;min-height:0;
+    max-width:100%;max-height:calc(100vh - 244px);width:auto;height:auto;object-fit:contain;
+    border:1px solid var(--line);border-radius:14px;background:#000;
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.9);
+  }
+  /* The caption is read from the back of a room, so it is set like a line of
+     the talk rather than like a filename: sans, sized with the body copy, and
+     clear of the artwork entirely. It was mono at 11px inside the frame, which
+     survived a laptop screen and nothing larger. */
+  .shot figcaption{
+    flex:none;text-align:center;text-wrap:balance;
+    font:600 var(--t-lead)/1.35 var(--sans);
+    color:var(--fg);letter-spacing:.005em;
+  }
+  .shot figcaption b{color:var(--accent);font-weight:700}
+  .beats{list-style:none;margin-top:clamp(14px,2.2vh,22px);display:grid;gap:clamp(12px,1.8vh,18px)}
+  .beats li{
+    display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;
+    padding-left:2px;font-size:clamp(14px,1.16vw,17px);line-height:1.5;color:var(--fg-dim);
+  }
+  .beats b{color:var(--fg);font-weight:600}
+  .tick{
+    width:22px;height:22px;border-radius:6px;border:1px solid var(--line-2);
+    display:grid;place-items:center;font:600 11px/1 var(--mono);color:var(--accent);
+    margin-top:1px;flex:none;
+  }
+  .asks{margin-top:clamp(16px,2.4vh,26px);display:flex;flex-wrap:wrap;gap:8px 9px;align-items:center}
+  .asks-h{
+    width:100%;font:600 10px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+    color:var(--fg-faint);margin-bottom:3px;
+  }
+  .q{
+    border:1px solid var(--line-2);border-radius:999px;padding:8px 14px;
+    font-size:clamp(12.5px,1.02vw,15px);line-height:1.2;color:var(--fg);
+    background:rgba(255,255,255,.03);
+  }
+  .q.dead{
+    border-style:dashed;border-color:rgba(230,166,100,.45);color:var(--fg-faint);
+    background:transparent;font-family:var(--mono);font-size:clamp(11px,.9vw,13px);
+  }
+  .q.dead b{color:var(--accent);font-weight:600}
+  .today{
+    margin-top:clamp(14px,2vh,22px);border:1px solid var(--line);border-radius:10px;
+    padding:clamp(12px,1.6vh,16px) clamp(14px,1.2vw,18px);background:rgba(255,255,255,.022);
+  }
+  .today-h{
+    font:600 10px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+    color:var(--fg-faint);margin-bottom:12px;
+  }
+  .opt{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:baseline;
+    font-size:clamp(13px,1.05vw,15px);line-height:1.45}
+  .opt + .opt{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+  .opt code{font-family:var(--mono);font-size:.92em;color:var(--accent-3);white-space:nowrap}
+  .opt span{color:var(--fg-dim)}
+  .pull b{color:var(--fg);font-weight:640}
+  .pairs{margin-top:clamp(14px,2.2vh,22px);display:grid;gap:clamp(8px,1.2vh,12px)}
+  .pairs-h{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(14px,1.6vw,26px);
+    font:600 9.5px/1 var(--mono);letter-spacing:.19em;text-transform:uppercase;color:var(--fg-faint);
+  }
+  .pairs-h span:first-child{color:var(--accent)}
+  .pair{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(14px,1.6vw,26px);
+    padding-top:clamp(8px,1.2vh,12px);border-top:1px solid var(--line);align-items:start;
+  }
+  .bad{font-size:clamp(12.5px,1.02vw,15px);line-height:1.45;color:var(--fg-dim)}
+  .bad b{color:var(--fg);font-weight:640}
+  .fix code{
+    font-family:var(--mono);font-size:clamp(12px,.95vw,14px);color:var(--accent-3);
+    background:rgba(100,200,230,.09);padding:2px 7px;border-radius:5px;
+  }
+  .fix code + code{margin-left:5px}
+  .fix i{
+    font-style:normal;display:block;margin-top:6px;
+    font-size:clamp(11.5px,.92vw,13.5px);line-height:1.42;color:var(--fg-faint);
+  }
+  .pull code{font-family:var(--mono);font-size:.86em;color:var(--accent-3)}
+  .breaks{margin-top:clamp(14px,2.2vh,22px);display:grid;gap:clamp(8px,1.2vh,12px)}
+  .breaks-h{font:600 9.5px/1 var(--mono);letter-spacing:.19em;text-transform:uppercase;color:var(--fg-faint)}
+  .bad{display:grid;grid-template-columns:auto 1fr;gap:13px;align-items:start;
+    font-size:clamp(12.5px,1.02vw,15px);line-height:1.45;color:var(--fg-dim)}
+  .bad b{color:var(--fg);font-weight:640}
+  .q .mono{font-family:var(--mono);font-size:.9em;color:var(--accent-3)}
+  .tags{
+    margin-top:clamp(14px,2.2vh,22px);display:grid;grid-template-columns:repeat(3,1fr);
+    gap:clamp(10px,1.1vw,16px);
+  }
+  .tags-h{
+    grid-column:1/-1;font:600 9.5px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+    color:var(--fg-faint);margin-bottom:-2px;
+  }
+  .tag:nth-child(4){border-top-color:#d9534f}
+  .tag:nth-child(4) b{color:#e8756f}
+  .tag{border-top:2px solid var(--accent);padding-top:11px}
+  .tag b{
+    display:block;font:600 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);
+  }
+  .tag span{
+    display:block;margin-top:7px;font-size:clamp(12px,.98vw,14px);line-height:1.4;color:var(--fg-dim);
+  }
+  .pull{
+    margin-top:clamp(16px,2.4vh,26px);border-left:2px solid var(--accent);
+    padding:6px 0 6px 18px;font-size:clamp(15px,1.35vw,21px);line-height:1.45;
+    letter-spacing:-.01em;
+  }
+  .pull span{color:var(--fg-faint);display:block;margin-top:8px;font-size:13px;
+    font-family:var(--mono);letter-spacing:.04em}
+
+
+  /* ── slide 1 · column rhythm ────────────────────── */
+  .col{display:flex;flex-direction:column;gap:clamp(18px,3vh,34px);min-width:0}
+  .col header .sub{margin-top:clamp(10px,1.5vh,16px)}
+  .lbl{
+    font:600 var(--t-label)/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;
+    color:var(--fg-faint);margin-bottom:clamp(10px,1.5vh,14px);
+    display:flex;align-items:center;gap:12px;
+  }
+  .lbl::after{content:"";flex:1;height:1px;background:var(--line)}
+  .qgrid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(9px,1.2vh,13px) clamp(10px,.9vw,14px)}
+  /* These four are slide 1's answer to slide 2's four cards, so they carry the
+     same weight: card-scale type, not caption-scale. */
+  .q{
+    border:1px solid var(--line-2);border-radius:9px;
+    padding:clamp(10px,1.5vh,15px) clamp(13px,1.1vw,18px);
+    font-size:var(--t-lead);line-height:1.32;color:var(--fg);
+    background:rgba(255,255,255,.03);
+  }
+  .q .mono{font-family:var(--mono);font-size:.88em;color:var(--accent-3)}
+  .note{
+    margin-top:clamp(10px,1.5vh,14px);font-size:var(--t-body);
+    line-height:1.45;color:var(--fg-dim);
+  }
+  .note b{color:var(--accent);font-weight:600}
+  .tags{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(10px,1.1vw,18px)}
+  .tag{border-top:2px solid var(--accent);padding-top:11px}
+  .tag b{display:block;font:600 var(--t-label)/1 var(--mono);letter-spacing:.15em;
+    text-transform:uppercase;color:var(--accent)}
+  .tag span{display:block;margin-top:9px;font-size:var(--t-body);
+    line-height:1.45;color:var(--fg-dim)}
+  .tag.risk{border-top-color:#d9534f}
+  .tag.risk b{color:#e8756f}
+  .foot{
+    margin-top:auto;border-top:1px solid var(--line);padding-top:clamp(12px,1.8vh,18px);
+    font-size:var(--t-body);line-height:1.5;color:var(--fg-dim);
+  }
+  .foot code{font-family:var(--mono);font-size:.9em;color:var(--accent-3)}
+  .foot b{color:var(--fg);font-weight:640}
+
+  /* ── slide 2 ────────────────────────────────────── */
+  .s2{height:100%;display:flex;flex-direction:column;gap:clamp(16px,2.4vh,28px)}
+  .s2-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:end}
+  .logo{
+    font:700 13px/1 var(--mono);letter-spacing:.2em;color:var(--fg);
+    border:1px solid var(--line-2);border-radius:8px;padding:10px 14px;white-space:nowrap;
+  }
+  .logo i{font-style:normal;color:var(--accent-2)}
+  .grid{
+    flex:1;min-height:0;display:grid;
+    grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
+    gap:clamp(18px,2vw,30px);
+  }
+  .cards{display:grid;grid-template-rows:repeat(4,minmax(0,1fr));gap:clamp(10px,1.4vh,14px);min-height:0}
+  .card{
+    border:1px solid var(--line);border-radius:12px;background:
+      linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+    padding:clamp(12px,1.7vh,18px) clamp(14px,1.4vw,20px);
+    display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;min-height:0;
+  }
+  .card .k{
+    font:600 clamp(10px,.78vw,12.5px)/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+    writing-mode:vertical-rl;transform:rotate(180deg);color:var(--accent-2);
+    border-right:1px solid var(--line);padding-right:12px;align-self:stretch;
+    display:grid;place-items:center;
+  }
+  .card:nth-child(2) .k{color:var(--accent-3)}
+  .card:nth-child(3) .k{color:var(--accent)}
+  .card:nth-child(4) .k{color:var(--green)}
+  /* Read from the back of a thousand-seat room, which is a hard constraint
+     rather than a taste: at that distance a line of body prose is a grey
+     smear, so each card is one claim in headline type and the commands that
+     make it true. The prose that used to be here said more and landed less. */
+  .card h3{font-size:clamp(19px,1.85vw,30px);font-weight:660;letter-spacing:-.018em;
+    line-height:1.12}
+  .card h3 em{font-style:normal;color:var(--accent)}
+  .card:nth-child(1) h3 em{color:var(--accent-2)}
+  .card:nth-child(2) h3 em{color:var(--accent-3)}
+  .card:nth-child(4) h3 em{color:var(--green)}
+  .card p{margin-top:clamp(6px,.9vh,11px);display:flex;flex-wrap:wrap;gap:6px 7px}
+  .card code{font-family:var(--mono);font-size:clamp(11px,.92vw,15px);color:var(--fg-dim);
+    background:rgba(255,255,255,.055);border:1px solid var(--line);
+    padding:3px 8px;border-radius:5px;white-space:nowrap}
+
+  .right{display:flex;flex-direction:column;gap:clamp(12px,1.6vh,18px);min-height:0}
+  .term{
+    flex:1;min-height:0;border:1px solid var(--line);border-radius:12px;
+    background:linear-gradient(180deg,#101017,#08080c 62%);
+    overflow:hidden;display:flex;flex-direction:column;
+  }
+  .term-bar{
+    display:flex;align-items:center;gap:7px;padding:9px 13px;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.025);
+  }
+  .dot{width:9px;height:9px;border-radius:50%;background:#3a3a3e}
+  .term-bar span{margin-left:8px;font:500 clamp(10.5px,.82vw,13.5px)/1 var(--mono);color:var(--fg-faint)}
+  .term pre{
+    flex:1;min-height:0;overflow:hidden;padding:clamp(10px,1.6vh,16px) clamp(12px,1.2vw,18px);
+    font-family:var(--mono);font-size:clamp(9.5px,.83vw,14px);line-height:1.6;color:#d0d0d0;
+    white-space:pre;
+  }
+
+  /* the stage holds the menu and every view it opens, one on top of the other */
+  .stage{position:relative;flex:1;min-height:0}
+  /* a touch tighter than a single static screen would need — the tallest of
+     these is seventeen rows and the last row is the one that says what to press */
+  /* inset:0 + height:max-content + margin:auto centres each screen in the box.
+     They are ten to fifteen rows tall depending on the view, so top-aligning
+     them left a different-sized hole under every one. */
+  .stage pre{position:absolute;inset:0;display:block;height:max-content;margin:auto;
+    opacity:0;visibility:hidden;
+    transform:translateY(10px);
+    transition:opacity .5s cubic-bezier(.2,.7,.2,1),transform .5s cubic-bezier(.2,.7,.2,1),visibility .5s;
+    font-size:clamp(9.5px,.83vw,14px);line-height:1.6}
+  /* Crossfade, not a cut: the outgoing screen is still there while the new one
+     arrives, so no frame is ever blank — the swap reads as one screen breathing
+     into the next. */
+  .stage pre.on{opacity:1;visibility:visible;transform:none}
+  /* the blade holds its column whether or not it is lit, so nothing shifts */
+  .blade{color:transparent}
+  .blade.on{color:#ffd700;animation:blink 1.05s step-end infinite}
+  /* the highlight is cs's own cursor pair — white on 61 — not a generic tint */
+  .row.sel{background:rgba(95,95,175,.55);border-radius:3px;box-shadow:0 0 0 1px rgba(135,175,255,.22)}
+  .row.sel .mu{color:#cfcbf2}
+  .row.sel .wh{color:#ffffff}
+  /* ── the terminal palette ────────────────────────────
+     These are cs's own 256-colour indices, not invented ones, so the deck and
+     the tool are the same object: hue carries meaning, brightness carries
+     emphasis. Anything cool is information, anything warm is a finding, grey
+     is furniture. Names match cs/ui.py. */
+  .term .ac{color:#87afff}                  /* 111 · headings, rules, repos  */
+  .term .hd{color:#afd7ff;font-weight:600}  /* 153 · column headers          */
+  .term .mu{color:#808080}                  /* 244 · furniture               */
+  .term .pa{color:#d0d0d0}                  /* 252 · body                    */
+  .term .wh{color:#eeeeee;font-weight:600}  /* 255 · what the row is about   */
+  .term .vi{color:#af87ff}                  /* 141 · totals, spend           */
+  .term .cr{color:#d787ff;font-weight:600}  /* 177 · credits                 */
+  .term .sk{color:#5fafff}                  /* 75                            */
+  .term .cy{color:#87d7ff}                  /* 117 · last active             */
+  .term .te{color:#00d7d7}                  /* 44                            */
+  .term .mi{color:#00ffaf}                  /* 49  · counts, good news       */
+  .term .gr{color:#87d787}                  /* 114 · turns                   */
+  .term .li{color:#afd75f}                  /* 149 · fine, and worth seeing  */
+  .term .am{color:#ffaf5f}                  /* 215 · worth a look            */
+  .term .go{color:#ffd700;font-weight:600}  /* 220 · the status line         */
+  .term .or{color:#ff875f}                  /* 209                           */
+  .term .ro{color:#ff5f87}                  /* 204 · worth changing          */
+  .term .sl{color:#5f5f87}                  /* 60  · rules and bar tracks    */
+  /* the eight-step bar ramp, purple → cyan, same sweep the bars use on screen */
+  .term .r1{color:#875fff} .term .r2{color:#8787ff} .term .r3{color:#87afff}
+  .term .r4{color:#5fafff} .term .r5{color:#00afff} .term .r6{color:#00d7ff}
+  .term .r7{color:#00d7d7} .term .r8{color:#00ffaf}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(10px,1.2vw,14px)}
+  .stat{border:1px solid var(--line);border-radius:10px;padding:clamp(10px,1.5vh,14px) 14px}
+  .stat b{display:block;font-size:clamp(18px,1.75vw,27px);letter-spacing:-.02em;
+    font-weight:660;white-space:nowrap}
+  .stat i{font-style:normal;display:block;margin-top:5px;
+    font:500 clamp(10px,.76vw,12.5px)/1.35 var(--mono);
+    letter-spacing:.09em;text-transform:uppercase;color:var(--fg-faint)}
+  .stat:nth-child(1) b{color:var(--accent-3)}
+  .stat:nth-child(2) b{color:var(--accent)}
+  .stat:nth-child(3) b{color:var(--green)}
+  .stat:nth-child(4) b{color:var(--fg-dim)}
+
+  /* The closing line used to restate the four cards in a sentence, which is
+     the one thing a room of a thousand cannot read and does not need: they
+     have just been shown it. What is left is the only instruction anyone has
+     to take away. */
+  .cta-row{display:flex;justify-content:flex-end;align-items:center}
+  .cta{
+    font:600 clamp(12px,1vw,16px)/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
+    border:1px solid var(--accent-2);color:#cfc9ff;border-radius:9px;
+    padding:clamp(11px,1.5vh,15px) clamp(16px,1.6vw,24px);white-space:nowrap;
+    background:rgba(124,108,242,.10);
+  }
+
+
+  /* ── slide 2 entrance ───────────────────────────── */
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @keyframes blink{0%,48%{opacity:1}49%,100%{opacity:0}}
+  @keyframes glow{
+    0%,100%{box-shadow:0 0 0 0 rgba(124,108,242,0);border-color:var(--accent-2)}
+    50%{box-shadow:0 0 22px -4px rgba(124,108,242,.55);border-color:#a99bff}
+  }
+
+
+  /* ── keyed build ──────────────────────────────────
+     Nothing moves on its own, on either slide. Every beat starts parked
+     (.rv) and the presenter walks it in with the arrow keys. */
+  .slide .rv{opacity:0;transform:translateY(14px);
+    transition:opacity .55s cubic-bezier(.2,.7,.2,1),transform .55s cubic-bezier(.2,.7,.2,1)}
+  .slide .rv.in{opacity:1;transform:none}
+  #s1 h1 .rv{display:inline-block}   /* transforms need a box; em is inline */
+  /* the break is designed, not accidental: line 1 is the setup, line 2
+     holds the reel and the answer, and it never re-wraps mid-reveal */
+  #s1 h1 .tail{white-space:nowrap}
+  /* the guessing reel: wrong answers blur-flip through the blank until the
+     presenter lands the real one. Inline-grid stacks all candidates in one
+     cell, so the gap is sized to the widest guess and nothing reflows. */
+  #s1 h1 .guess{display:inline-grid;vertical-align:bottom;color:var(--accent);opacity:.85}
+  #s1 h1 .guess span{grid-area:1/1;white-space:nowrap;opacity:0;
+    animation:guess 5s cubic-bezier(.2,.7,.2,1) infinite;animation-play-state:paused}
+  /* Beat one leaves the sentence hanging on a blinking caret. The blank is
+     already as wide as the widest guess, so the room gets a held pause to
+     answer for itself — and by the time the guesses arrive on beat two,
+     everyone has already committed to one. Nothing reflows between them.
+     The reel is paused rather than merely hidden because .rv parks with
+     opacity, not display: an animation left running would start at page
+     load and be at some arbitrary frame by the time it was called for,
+     often mid-gap and showing an empty blank.
+     The caret is drawn in CSS rather than set as ▍: the block glyphs are
+     missing from the headline's display font, so a typed caret rendered as
+     nothing at all — invisible on the one beat that has to hold the room. */
+  #s1 h1 .guess .wait{grid-area:1/1;justify-self:start;align-self:end;
+    width:.09em;height:.78em;margin-bottom:.08em;background:currentColor;
+    animation:caret 1.05s step-end infinite}
+  /* caret blinks on background, not opacity: an opacity blink is composited
+     off the main thread, which renders it unreliably in captures and on some
+     projectors. Repainting the box is cheap at this size and always shows. */
+  @keyframes caret{0%,48%{background:currentColor}49%,100%{background:transparent}}
+  #s1 h1.asking .guess .wait{opacity:0;animation:none}
+  #s1 h1.asking .guess span{animation-play-state:running}
+  #s1 h1 .guess span:nth-of-type(2){animation-delay:1s}
+  #s1 h1 .guess span:nth-of-type(3){animation-delay:2s}
+  #s1 h1 .guess span:nth-of-type(4){animation-delay:3s}
+  #s1 h1 .guess span:nth-of-type(5){animation-delay:4s}
+  #s1 h1.solved .guess{display:none}
+  @keyframes guess{
+    0%      {opacity:0;transform:translateY(.45em);filter:blur(8px)}
+    3%,17%  {opacity:1;transform:none;filter:blur(0)}
+    20%,100%{opacity:0;transform:translateY(-.45em);filter:blur(8px)}
+  }
+  /* the answer decodes letter by letter (JS scrambles the glyphs) while a
+     slow amber burn sweeps through — one beat the room will remember */
+  #s1 h1 em{font-style:normal}
+  #s1 h1 em.in{animation:land 1.4s cubic-bezier(.2,.7,.2,1)}
+  /* Once revealed, the still breathes like film — a slow settle, not a zoom.
+     It settles up to full size rather than down from 1.08: a transform is not
+     laid out, so an oversized poster sat over its own caption for the whole
+     seven seconds, which is exactly the beat the room is looking at it. */
+  #s1 .poster.in{animation:kenburns 7s ease-out both}
+  @keyframes kenburns{from{transform:scale(.94)}to{transform:scale(1)}}
+  @keyframes land{
+    0% {text-shadow:0 0 0 rgba(230,166,100,0);color:var(--fg)}
+    30%{text-shadow:0 0 44px rgba(230,166,100,.95);color:#ffd9a8}
+    100%{text-shadow:0 0 0 rgba(230,166,100,0)}
+  }
+
+  /* slide 2 is keyed too — the cure word burns like the diagnosis did */
+  #s2 h1.in em{animation:land 1.6s .5s both cubic-bezier(.2,.7,.2,1)}
+  .term .blink{animation:blink 1.05s step-end infinite}
+  #s2 .cta.in{animation:glow 3s .6s ease-in-out infinite}
+
+  @media (prefers-reduced-motion:reduce){
+    .slide{transition:opacity .2s ease !important;transform:none !important}
+    .slide .rv{transition:none}
+    #s1 h1 .guess span{animation:none}
+    /* first-of-type, not first-child: the caret is the first child now.
+       The caret stops blinking but still marks the blank, and the guesses
+       stay gated on .asking so the beat order survives without motion. */
+    #s1 h1 .guess .wait{animation:none;background:currentColor}
+    #s1 h1.asking .guess span:first-of-type{opacity:1}
+    #s1 h1 em.in, #s2 h1.in em, #s2 .cta.in{animation:none}
+    #s1 .poster.in, .term .blink{animation:none}
+  }
+
+  @media (max-width:1000px){
+    body{overflow:auto}
+    .slide{position:relative;visibility:visible;opacity:1;transform:none;min-height:100vh}
+    .s1,.grid{grid-template-columns:1fr}
+    .qgrid,.tags{grid-template-columns:1fr}
+    .chrome{display:none}
+    .slide .rv{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+<div class="progress" id="bar"></div>
+
+<div class="deck">
+
+  <!-- ═══════════ SLIDE 1 · PROBLEM ═══════════ -->
+  <section class="slide active" id="s1">
+    <div class="s1">
+      <figure class="shot">
+        <figcaption>The <b>best film</b> made about prompt &amp; context engineering…</figcaption>
+        <img class="poster" src="poster.svg" width="1000" height="1400"
+             alt="Original tribute poster for Memento: three instant photographs stacked
+                  and tilted, the furthest blank, the middle half legible, the nearest
+                  clearly captioned DON'T FORGET.">
+      </figure>
+
+      <div>
+        <div class="col">
+
+          <header>
+            <div class="eyebrow">The gap</div>
+            <h1>The hardest part of prompting<br><span class="tail">is <span class="guess" aria-hidden="true"><i class="wait"></i><span>the model?</span><span>the prompt?</span><span>the tokens?</span><span>the instructions?</span><span>the context window?</span></span><em>remembering.</em></span></h1>
+            <p class="sub">
+              Nothing is actually lost. Every turn is on your disk right now.
+              You just have no way to look.
+            </p>
+          </header>
+
+          <section class="block">
+            <div class="lbl">What we ask for, constantly</div>
+            <div class="qgrid">
+              <div class="q">"Open the session from two weeks back."</div>
+              <div class="q">"Which session touched <span class="mono">payments.py</span>?"</div>
+              <div class="q">"Which prompt made it do that?"</div>
+              <div class="q">"Did a key ever land in a transcript?"</div>
+            </div>
+            <p class="note">Today every one of them ends the same way — <b>scroll back and hope.</b></p>
+          </section>
+
+          <section class="block">
+            <div class="lbl">And it is not free</div>
+            <div class="tags">
+              <div class="tag"><b>Tokens burned</b><span>the same context re-sent every session. You pay to explain the repo again, and again.</span></div>
+              <div class="tag"><b>Work redone</b><span>compaction drops an hour of reasoning mid-task, and it gets re-derived from scratch.</span></div>
+              <div class="tag risk"><b>Security gap</b><span>keys sitting in transcripts nobody has read, from runs nobody watched.</span></div>
+            </div>
+          </section>
+
+          <p class="foot">
+            Copilot ships <code>--continue</code>, <code>--resume</code>, a sessions
+            tab and <code>/chronicle</code> — the last of those the most useful by
+            some way. <b>But that is the entire toolkit, and it profiles a bounded
+            window of recent sessions.</b>
+          </p>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ SLIDE 2 · SOLUTION ═══════════ -->
+  <section class="slide" id="s2">
+    <div class="s2">
+      <div class="s2-head">
+        <div>
+          <div class="eyebrow">The solution</div>
+          <h1>Now it <em>remembers</em>.</h1>
+          <p class="sub">
+            <strong>Copilot Sessions (<code>cs</code>)</strong><br>
+            A terminal browser over the store you already have.
+          </p>
+        </div>
+        <div class="logo">$ <i>cs</i></div>
+      </div>
+
+      <div class="grid">
+        <div class="cards">
+          <div class="card">
+            <div class="k">Find</div>
+            <div>
+              <h3>Every session, <em>searchable</em></h3>
+              <p><code>cs search</code> <code>cs read</code> <code>cs resume</code></p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="k">Measure</div>
+            <div>
+              <h3>Every credit, <em>counted</em></h3>
+              <p><code>cs cost</code> <code>cs stats</code> <code>cs agents</code></p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="k">Secure</div>
+            <div>
+              <h3>Every key, <em>caught</em></h3>
+              <p><code>cs audit</code> <code>cs yolo</code> <code>cs handoff</code></p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="k">Reference</div>
+            <div>
+              <h3>Every tool, <em>accounted</em></h3>
+              <p><code>cs skills</code> <code>cs hooks</code> <code>cs mcp</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="right">
+          <div class="term">
+            <div class="term-bar">
+              <i class="dot"></i><i class="dot"></i><i class="dot"></i>
+              <span id="termcap">cs — the landing screen. Every view one keypress away.</span>
+            </div>
+            <div class="stage" id="stage">
+<pre class="on" id="screen-menu">  <span class="mi">420</span> sessions · <span class="mi">310</span> interactive · <span class="mi">5,120</span> turns · <span class="mi">12</span> repos  <span class="mu">v1.0.0</span>
+  <span class="mu">activity</span> <span class="sk">▂▂▁ ▁▃ ▂▂▂▁▂▅▂▁ ▂▂▃▂ ▃▁▂▁ ▂▆▂▄▁ ▁▂▃▃▂▃ ▅▄▃▂▄</span> <span class="mu">120d</span>
+ <span class="sl">────────────────────────────────────────────────────────────────</span>
+  <span class="mu">FIND</span> <span class="sl">─────────────</span>
+<span class="blade on">▌</span> <span class="row sel">🕒 <span class="wh">Recent sessions</span>  <span class="mu">browse, read and resume · last 7 days</span></span>
+<span class="blade">▌</span> <span class="row">🔍 <span class="wh">Search</span>           <span class="mu">full text across every turn</span></span>
+  <span class="mu">MEASURE</span> <span class="sl">──────────</span>
+<span class="blade">▌</span> <span class="row">💰 <span class="wh">AI spend</span>         <span class="mu">credits by model, repository and day</span></span>
+<span class="blade">▌</span> <span class="row">👥 <span class="wh">Delegation</span>       <span class="mu">you vs the main agent vs sub-agents</span></span>
+  <span class="mu">GOVERN</span> <span class="sl">───────────</span>
+<span class="blade">▌</span> <span class="row">🚀 <span class="wh">Autonomy</span>         <span class="mu">which sessions ran unattended · YOLO</span></span>
+  <span class="mu">REFERENCE</span> <span class="sl">────────</span>
+<span class="blade">▌</span> <span class="row">🎓 <span class="wh">Skills</span>           <span class="mu">on disk versus actually reached for</span></span>
+ <span class="mu">↑↓ move · ↵ open · type to find · / search text · q quit</span>
+</pre>
+
+<pre class="view" data-row="0" data-cap="cs recent — the last 7 days, newest first. ↵ reads, r resumes.">  <span class="mu">Sessions · last 7 days · interactive · 42 total · sorted by active ↓</span>
+
+    <span class="hd">#   Active↓ Turns  Credits  Summary</span>
+ <span class="sl">────────────────────────────────────────────────────────────────</span>
+  <span class="ac">Today · Monday 2026-03-09</span>
+    <span class="go">1</span>  <span class="cy">17:03</span>   <span class="gr">13</span>     <span class="cr">4.2k</span>   <span class="pa">Migrate CI to Actions</span>    <span class="ac">#acme/infra</span>
+    <span class="go">2</span>  <span class="cy">17:02</span>   <span class="gr">25</span>     <span class="cr">7.5k</span>   <span class="pa">Add checkout validation</span>  <span class="ac">#acme/webshop</span>
+    <span class="go">3</span>  <span class="cy">16:09</span>    <span class="gr">1</span>      <span class="cr">735</span>   <span class="pa">Fix flaky payment tests</span>  <span class="ac">#acme/payments</span>
+    <span class="go">4</span>  <span class="cy">15:54</span>   <span class="gr">15</span>      <span class="cr">788</span>   <span class="pa">Write onboarding docs</span>    <span class="ac">#acme/docs-site</span>
+    <span class="go">5</span>  <span class="cy">13:52</span>   <span class="gr">23</span>     <span class="cr">2.2k</span>   <span class="pa">Refactor cart service</span>    <span class="ac">#acme/webshop</span>
+  <span class="ac">Yesterday · Sunday 2026-03-08</span>
+    <span class="go">6</span>  <span class="cy">22:14</span>    <span class="gr">8</span>     <span class="cr">1.1k</span>   <span class="pa">Tune search relevance</span>    <span class="ac">#acme/webshop</span>
+    <span class="go">7</span>  <span class="cy">19:31</span>   <span class="gr">23</span>     <span class="cr">4.4k</span>   <span class="pa">Cache warming for feed</span>   <span class="ac">#acme/api</span>
+
+  <span class="mu">cs show #1  ·  cs read #1  ·  </span><span class="go">cs resume #1</span><span class="go blink">▌</span>
+</pre>
+
+<pre class="view" data-row="0" data-cap="cs resume #1 — back into the session, in its own directory.">  <span class="mu">$</span> <span class="wh">cs resume #1</span>
+
+  <span class="hd">session </span> <span class="go">1a2b3c4d</span>
+  <span class="hd">summary </span> <span class="pa">Migrate CI to GitHub Actions</span>
+  <span class="hd">repo    </span> <span class="ac">acme/infra</span> <span class="mu">·</span> <span class="li">feat/actions-migration</span>
+  <span class="hd">turns   </span> <span class="gr">13</span> <span class="mu">· last active</span> <span class="cy">17:03 today</span> <span class="mu">·</span> <span class="cr">4.2k</span> <span class="mu">AIU</span>
+
+  <span class="ac">▌</span><span class="wh">Still open</span>
+    <span class="am">→</span> <span class="pa">wire the deploy job to the staging environment</span>
+
+  <span class="mu">cd</span> <span class="pa">~/src/acme/infra</span>
+  <span class="mu">exec</span> <span class="pa">copilot --resume 1a2b3c4d</span>
+  <span class="mi">↻ resuming — thirteen turns of context, already loaded</span><span class="go blink">▌</span>
+</pre>
+
+<pre class="view" data-row="1" data-cap="cs search — ranked, over both sides of every turn.">  <span class="mu">Search · </span><span class="ac">'cache tokens'</span><span class="mu"> · 8 sessions · best match first</span>
+
+    <span class="go">1</span>  <span class="cy">03-08T11:20</span>   <span class="gr">24</span>        <span class="mu">-</span>   <span class="pa">Tune search relevance</span>   <span class="ac">#acme/webshop</span>
+       <span class="mu">turn …</span><span class="pa">cache</span><span class="go">_read</span><span class="pa"> + cache</span><span class="go">_write</span><span class="pa"> · cache</span><span class="go">_write</span><span class="pa"> + out</span><span class="mu">…</span>
+    <span class="go">2</span>  <span class="cy">03-05T19:31</span>   <span class="gr">23</span>     <span class="cr">4.4k</span>   <span class="pa">Refactor cart service</span>   <span class="ac">#acme/webshop</span>
+       <span class="mu">turn …</span><span class="pa">each `assistant` message carries a `usage` b</span><span class="mu">…</span>
+    <span class="go">3</span>  <span class="cy">03-02T09:47</span>   <span class="gr">11</span>     <span class="cr">1.9k</span>   <span class="pa">Add response caching</span>    <span class="ac">#acme/api</span>
+       <span class="mu">turn …</span><span class="pa">the cache hit ratio moved from 31% to 68% af</span><span class="mu">…</span>
+    <span class="go">4</span>  <span class="cy">02-27T14:05</span>    <span class="gr">6</span>      <span class="cr">910</span>   <span class="pa">Trim prompt overhead</span>    <span class="ac">#acme/infra</span>
+       <span class="mu">turn …</span><span class="pa">tokens we never had to send twice, per repo</span><span class="mu">…</span>
+
+  <span class="mu">every turn · both sides · checkpoints · workspace artifacts</span><span class="go blink">▌</span>
+</pre>
+
+<pre class="view" data-row="2" data-cap="cs cost — credits by model, repository and day.">  <span class="ac">▌</span><span class="wh">By model</span>
+       <span class="hd">spend  model                share              calls    avg</span>
+      <span class="cr">117.3k</span>  <span class="pa">claude-opus-5</span>        <span class="vi">██████████████</span>    <span class="gr">10,906</span>  <span class="cy">11.5s</span>
+       <span class="cr">31.1k</span>  <span class="pa">claude-sonnet-4.6</span>    <span class="vi">████</span><span class="sl">··········</span>     <span class="gr">1,552</span>   <span class="cy">5.8s</span>
+        <span class="cr">6.1k</span>  <span class="pa">gpt-5.5</span>              <span class="vi">▏</span><span class="sl">·············</span>       <span class="gr">777</span>  <span class="cy">13.0s</span>
+
+  <span class="ac">▌</span><span class="wh">Per day</span>
+       <span class="hd">spend  day                  share              calls</span>
+       <span class="cr">46.8k</span>  <span class="pa">Fri 06 Mar</span>           <span class="sk">██████████████</span>     <span class="gr">4,412</span>
+       <span class="cr">28.4k</span>  <span class="pa">Sat 07 Mar</span>           <span class="sk">████████</span><span class="sl">······</span>     <span class="gr">2,610</span>
+       <span class="cr">19.2k</span>  <span class="pa">Sun 08 Mar</span>           <span class="sk">█████</span><span class="sl">·········</span>     <span class="gr">1,884</span>
+
+  <span class="ac">▌</span><span class="wh">By repository</span>
+       <span class="cr">88.4k</span>  <span class="ac">acme/webshop</span>         <span class="mi">████████████</span><span class="sl">··</span>     <span class="gr">6,204</span>
+       <span class="cr">42.9k</span>  <span class="ac">acme/infra</span>           <span class="mi">██████</span><span class="sl">········</span>     <span class="gr">2,140</span><span class="go blink">▌</span>
+</pre>
+
+<pre class="view" data-row="3" data-cap="cs agents — you, the main agent, and everything you delegated.">  <span class="ac">▌</span><span class="wh">How the work was done</span> <span class="mu">· last 30 days</span>
+
+    <span class="pa">you       </span> <span class="mi">▍</span><span class="sl">·················</span>    <span class="gr">20</span> <span class="mu">calls</span>     <span class="cr">699</span> <span class="mu">AIU</span>
+    <span class="pa">main agent</span> <span class="mi">██████████████████</span>   <span class="gr">949</span> <span class="mu">calls</span>    <span class="cr">7.3k</span> <span class="mu">AIU</span>
+    <span class="pa">sub-agents</span> <span class="mi">▊</span><span class="sl">·················</span>    <span class="gr">42</span> <span class="mu">calls</span>     <span class="cr">326</span> <span class="mu">AIU</span>
+    <span class="pa">compaction</span> <span class="mi">▏</span><span class="sl">·················</span>     <span class="gr">6</span> <span class="mu">calls</span>     <span class="cr">710</span> <span class="mu">AIU</span>
+
+  <span class="ac">▌</span><span class="wh">Sub-agents that actually ran</span>
+       <span class="hd">runs  agent               share               spend</span>
+        <span class="gr">38</span>  <span class="pa">explore</span>             <span class="sk">██████████</span><span class="sl">····</span>     <span class="cr">184</span> <span class="mu">AIU</span>
+        <span class="gr">21</span>  <span class="pa">code-review</span>         <span class="sk">█████</span><span class="sl">·········</span>      <span class="cr">97</span> <span class="mu">AIU</span>
+        <span class="gr">9</span>   <span class="pa">general-purpose</span>     <span class="sk">██</span><span class="sl">············</span>      <span class="cr">45</span> <span class="mu">AIU</span>
+
+  <span class="am">indirect</span> <span class="mu">1.0k AIU · 11% of the bill, no prompt of yours behind it</span><span class="go blink">▌</span>
+</pre>
+
+<pre class="view" data-row="4" data-cap="cs yolo — which sessions ran unattended, and on what evidence.">        <span class="ro">6</span>  <span class="ro">YOLO      </span>  <span class="mu">approvals off, on the session's own evidence</span>
+       <span class="am">18</span>  <span class="am">unattended</span>  <span class="mu">no evidence either way, but it ran alone</span>
+      <span class="gr">396</span>  <span class="gr">supervised</span>  <span class="mu">prompted often enough to be supervised</span>
+
+        <span class="hd">session   last active  turns  steps  per turn  summary</span>
+ <span class="sl">────────────────────────────────────────────────────────────────</span>
+  <span class="ro">YOLO</span>  <span class="go">9c0d1e2f</span>  <span class="cy">03-04 21:31</span>      <span class="gr">2</span>    <span class="vi">116</span>      <span class="ro">58.0</span>  <span class="pa">Bulk-rename…</span>
+        <span class="mu">you turned approvals off in the session</span>
+  <span class="am">auto</span>  <span class="go">3a4b5c6d</span>  <span class="cy">03-09 16:09</span>      <span class="gr">1</span>     <span class="vi">98</span>      <span class="am">98.0</span>  <span class="pa">Regenerate…</span>
+        <span class="mu">98 steps on one prompt — no check-in between them</span>
+  <span class="am">auto</span>  <span class="go">7e8f9a0b</span>  <span class="cy">03-07 11:42</span>      <span class="gr">3</span>    <span class="vi">141</span>      <span class="am">47.0</span>  <span class="pa">Backfill se…</span>
+
+  <span class="mu">supervised sessions are hidden by default · cs yolo --all</span><span class="go blink">▌</span>
+</pre>
+
+<pre class="view" data-row="5" data-cap="cs skills — what you installed against what you actually reach for.">  <span class="ac">▌</span><span class="wh">Skills</span> <span class="mu">· 11 of 30 ever reached for</span>
+
+       <span class="hd">refs  skill                share                    load</span>
+        <span class="gr">64</span>  <span class="pa">service-report</span>       <span class="mi">██████████████</span>   <span class="mi">· 22 ran</span>
+        <span class="gr">41</span>  <span class="pa">test-generation</span>      <span class="mi">█████████</span><span class="sl">·····</span>   <span class="mi">· 17 ran</span>
+        <span class="gr">28</span>  <span class="pa">security-audit</span>       <span class="mi">██████</span><span class="sl">········</span>   <span class="mi">· 12 ran</span>
+        <span class="gr">12</span>  <span class="pa">coverage-analysis</span>    <span class="mi">██</span><span class="sl">············</span>    <span class="mi">· 8 ran</span>
+         <span class="gr">3</span>  <span class="pa">interview</span>            <span class="mi">▏</span><span class="sl">·············</span>    <span class="mi">· 2 ran</span>
+         <span class="mu">·</span>  <span class="mu">release-docs</span>         <span class="sl">··············</span>    <span class="mu">· none</span>
+         <span class="mu">·</span>  <span class="mu">deck-forge</span>           <span class="sl">··············</span>    <span class="mu">· none</span>
+
+  <span class="am">19 skills</span> <span class="mu">sit on disk having never been reached for at all</span><span class="go blink">▌</span>
+</pre>
+            </div>
+          </div>
+
+          <div class="stats">
+            <div class="stat"><b>Read-only</b><i>store never written</i></div>
+            <div class="stat"><b>Offline</b><i>never leaves the box</i></div>
+            <div class="stat"><b>Masked</b><i>keys caught on the way out</i></div>
+            <div class="stat"><b>0 deps</b><i>stdlib · nothing to vet</i></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cta-row">
+        <div class="cta">./install.sh → cs</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="chrome">
+  <div>Copilot Sessions</div>
+  <div class="nav">
+    <button id="prev">← prev</button>
+    <span id="count" style="padding:6px 4px">1 / 2</span>
+    <button id="next">next →</button>
+  </div>
+</div>
+
+<script>
+/* Optional local poster override.
+
+   The committed artwork (poster.svg) is original, because this repository is
+   published under MIT and shipping a film's own marketing inside it would be
+   redistributing artwork nobody here owns. Presenting is a different activity
+   from publishing, though, so this looks for a file named poster.local.<ext>
+   sitting next to the deck and uses it if it is there.
+
+   Those names are gitignored, so a local image stays local: it cannot be added
+   by accident, and it never reaches the history — which matters because a blob
+   pushed once stays fetchable at its old SHA even after a later commit deletes
+   it. Absent the file nothing happens, no request fails loudly, and the drawn
+   poster stands. Probing with an off-document Image() rather than swapping the
+   src directly is what keeps the common case silent. */
+(function(){
+  const img=document.querySelector('.poster');
+  if(!img) return;
+  const names=['poster.local.jpg','poster.local.jpeg','poster.local.png','poster.local.webp'];
+  (function attempt(i){
+    if(i>=names.length) return;
+    const probe=new Image();
+    probe.onload=()=>{img.src=names[i];img.dataset.local='1';};
+    probe.onerror=()=>attempt(i+1);
+    probe.src=names[i];
+  })(0);
+})();
+</script>
+
+<script>
+/* The terminal on slide 2 drives itself: the blade steps down the first five
+   options, opens each one, holds it long enough to be read, and comes back.
+   It runs only while slide 2 is up, and not at all under reduced motion. */
+const demo=(function(){
+  const stage=document.getElementById('stage');
+  const menu=document.getElementById('screen-menu');
+  const views=[...stage.querySelectorAll('pre.view')];
+  const blades=[...menu.querySelectorAll('.blade')];
+  const rows=[...menu.querySelectorAll('.row')];
+  const cap=document.getElementById('termcap');
+  const menuCap=cap.textContent;
+  const still=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const DWELL=1100, HOLD=3800;     // on the menu, then on the view it opens
+  let timer=null, at=0;
+
+  function show(pre,caption){
+    [menu,...views].forEach(s=>s.classList.toggle('on',s===pre));
+    cap.textContent=caption;
+  }
+  /* Each view names the menu row it was opened from, because they are no
+     longer one-to-one: `cs resume` is what you press from inside `cs recent`,
+     not a menu entry of its own. When two views in a row share a menu row the
+     demo stays put and moves straight on, so resuming reads as the next thing
+     you did rather than a second trip through the home screen. */
+  function step(){
+    const row=+views[at].dataset.row;
+    const stay=at>0&&+views[at-1].dataset.row===row;
+    blades.forEach((b,k)=>b.classList.toggle('on',k===row));
+    rows.forEach((r,k)=>r.classList.toggle('sel',k===row));
+    const open=()=>{
+      show(views[at],views[at].dataset.cap);
+      timer=setTimeout(()=>{at=(at+1)%views.length; step();},HOLD);
+    };
+    if(stay){open();return;}
+    show(menu,menuCap);
+    timer=setTimeout(open,DWELL);
+  }
+  return {
+    start(){ if(still)return; this.stop(); at=0; step(); },
+    stop(){ clearTimeout(timer); timer=null; }
+  };
+})();
+
+(function(){
+  const slides=[...document.querySelectorAll('.slide')];
+  let i=-1;   // unset, so the first go(0) still counts as an arrival
+  const bar=document.getElementById('bar'), count=document.getElementById('count');
+
+  /* both slides build on keypresses: each group is one beat of the talk */
+  function keyed(id,groups,onStep){
+    const slide=document.getElementById(id);
+    groups.flat().forEach(el=>el.classList.add('rv'));
+    const b={slide,groups,step:0,
+      go(n){
+        b.step=Math.max(0,Math.min(groups.length,n));
+        groups.forEach((g,gi)=>g.forEach((el,ei)=>{
+          el.style.transitionDelay=(gi<b.step)?(ei*70)+'ms':'0ms';
+          el.classList.toggle('in',gi<b.step);
+        }));
+        if(onStep)onStep(b.step);
+      }};
+    return b;
+  }
+
+  const s1=document.getElementById('s1');
+  /* the reveal: "remembering." decodes out of a glyph scramble, left to right */
+  const answer=s1.querySelector('header h1 em');
+  const word=answer.textContent;
+  const glyphs='abcdefghjkmnpqrstuvwxyz*#%&';
+  const noMotion=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  /* the guessing reel, and the one reliable way to rewind a CSS animation:
+     drop it, force the browser to notice, put it back. */
+  const reel=s1.querySelector('header h1 .guess');
+  let lastStep=0;
+  function restartReel(){
+    reel.querySelectorAll('span').forEach(el=>{
+      el.style.animation='none';
+      void el.offsetWidth;
+      el.style.animation='';
+    });
+  }
+  function decode(){
+    if(noMotion){answer.textContent=word;return;}
+    const t0=performance.now(), dur=1300;
+    (function tick(t){
+      const p=Math.min(1,(t-t0)/dur);
+      const n=Math.floor(p*word.length);
+      answer.textContent=word.slice(0,n)
+        +[...word.slice(n)].map(c=>c==='.'?'.':glyphs[Math.random()*glyphs.length|0]).join('');
+      if(p<1)requestAnimationFrame(tick); else answer.textContent=word;
+    })(t0);
+  }
+
+  const b1=keyed('s1',[
+    [s1.querySelector('header .eyebrow'), s1.querySelector('header h1')],
+    // A beat with nothing in it: the caret is already blinking, and this
+    // step exists purely to hold the room on the question before the
+    // guesses answer it. keyed() counts an empty group like any other.
+    [],
+    [s1.querySelector('header h1 em')],
+    [s1.querySelector('header .sub')],
+    [s1.querySelector('.block:nth-of-type(1) .lbl'),
+     ...s1.querySelectorAll('.block:nth-of-type(1) .q'),
+     s1.querySelector('.block:nth-of-type(1) .note')],
+    [s1.querySelector('.shot figcaption')],
+    [s1.querySelector('.poster')],
+    [s1.querySelector('.block:nth-of-type(2) .lbl'),
+     ...s1.querySelectorAll('.block:nth-of-type(2) .tag'),
+     s1.querySelector('.foot')],
+  ],step=>{
+    const head=s1.querySelector('header h1');
+    head.classList.toggle('asking',step>1);
+    head.classList.toggle('solved',step>2);
+    // Restart whenever this beat is entered or left. Unpausing alone would
+    // only fix the first run: pausing freezes a guess at its current frame,
+    // so stepping back used to leave one stranded on screen beside the
+    // caret. Rewinding to frame zero means paused reads as empty, and the
+    // beat plays identically however often it is walked over.
+    if(step!==lastStep&&step<=2)restartReel();
+    lastStep=step;
+    if(step>2&&!answer.classList.contains('decoded')){
+      answer.classList.add('decoded');
+      answer.textContent=word.replace(/[a-z]/g,()=>glyphs[Math.random()*glyphs.length|0]);
+      setTimeout(decode,200);            // let it fade in scrambled, then crack
+    }
+    if(step<=2){answer.classList.remove('decoded');answer.textContent=word;}
+  });
+
+  const s2=document.getElementById('s2');
+  const b2=keyed('s2',[
+    [s2.querySelector('.s2-head .eyebrow'), s2.querySelector('.s2-head h1'),
+     s2.querySelector('.s2-head .sub'), s2.querySelector('.logo')],
+    [...s2.querySelectorAll('.card')],
+    [s2.querySelector('.term')],
+    [...s2.querySelectorAll('.stat')],
+    [s2.querySelector('.cta')],
+  ],step=>{
+    if(step>2)demo.start(); else demo.stop();   // the demo runs only once its window is on stage
+  });
+  const builds=[b1,b2];
+
+  /* forward/back walks the build on the current slide before it walks the deck */
+  function fwd(){ const b=builds[i]; if(b&&b.step<b.groups.length){b.go(b.step+1);return;} go(i+1); }
+  function back(){ const b=builds[i]; if(b&&b.step>0){b.go(b.step-1);return;} go(i-1); }
+
+  function go(n){
+    const target=Math.max(0,Math.min(slides.length-1,n));
+    const changed=target!==i;              // a clamped extra click is not a revisit
+    i=target;
+    slides.forEach((s,k)=>{s.classList.toggle('active',k===i);});
+    bar.style.width=((i+1)/slides.length*100)+'%';
+    count.textContent=(i+1)+' / '+slides.length;
+    if(!changed)return;                    // stay put, beats and all
+    demo.stop();
+    if(builds[i])builds[i].go(1);          // every slide opens on its first beat
+  }
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','ArrowDown',' ','PageDown','n'].includes(e.key)){e.preventDefault();fwd();}
+    if(['ArrowLeft','ArrowUp','PageUp','p'].includes(e.key)){e.preventDefault();back();}
+    if(e.key==='Home')go(0); if(e.key==='End')go(slides.length-1);
+    if(e.key==='f'&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen();
+  });
+  document.getElementById('next').onclick=fwd;
+  document.getElementById('prev').onclick=back;
+  document.querySelector('.deck').addEventListener('click',e=>{
+    if(e.target.closest('button'))return;
+    if(e.clientX > innerWidth*0.5)fwd(); else back();
+  });
+  go(0);
+})();
+</script>
+</body>
+</html>

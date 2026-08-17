@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""Standalone launcher for cs — lets you run the tool without installing.
+
+Symlink this onto your PATH (see install.sh) and it works from anywhere.
+"""
+import sys
+from pathlib import Path
+
+# Make the package importable when run directly from a checkout.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from cs.cli import run  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(run())

@@ -1,0 +1,69 @@
+name: Feature request
+description: Something cs should show you that it does not.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The bar for a change here is **"does it earn its complexity"**. The
+        strongest requests describe a question you actually had to answer, not
+        a feature you would like to exist — so lead with the question.
+
+        Two things are settled and will not change, so a request that needs
+        either will be declined:
+
+        - **The store is read-only.** There is no write path and none is coming.
+        - **No runtime dependencies.** Standard library only — that is what
+          makes `cs` installable on a locked-down machine.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: What were you trying to find out?
+      description: |
+        The question, in your own words. For example: "which model burned my
+        credits last week", or "did anything run unattended overnight".
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What do you do today instead?
+      description: |
+        Which command you reach for now, and where it falls short — or if there
+        is genuinely nothing, say so.
+    validations:
+      required: true
+
+  - type: textarea
+    id: shape
+    attributes:
+      label: What should it look like?
+      description: |
+        Optional, but the fastest way to get agreement. Sketch the output as
+        text — a table, a couple of lines, a rough column layout. Made-up
+        numbers are fine.
+      render: text
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it belong?
+      options:
+        - A new view or command
+        - A change to an existing view
+        - A flag on an existing command
+        - JSON/CSV output only
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Does it fit?
+      options:
+        - label: It can be answered from data already in the local session store.
+        - label: It needs no new runtime dependency.
+        - label: It never writes to the store.

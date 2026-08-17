@@ -1,0 +1,1923 @@
+"""The main surface: listing, search, show, read, resume, export and the
+flags that cut across them.
+"""
+
+from __future__ import annotations
+
+import io
+import os
+import re
+import sqlite3
+import sys
+from contextlib import redirect_stdout
+from pathlib import Path
+
+from support import Screen, StoreTest, _Tty
+
+from cs.ui import cells as ui_cells
+
+
+class CSTest(StoreTest):
+    def test_help(self):
+        code, out = self._run("help")
+        self.assertEqual(code, 0)
+        self.assertIn("cs — Copilot Sessions", out)
+
+    def test_version(self):
+        code, out = self._run("version")
+        self.assertEqual(code, 0)
+        self.assertIn("cs ", out)
+
+    def test_stats(self):
+        code, out = self._run("stats")
+        self.assertEqual(code, 0)
+        self.assertIn("sessions", out)
+        self.assertIn("2 (1 interactive)", out)
+
+    def test_stats_reports_what_the_work_produced(self):
+        """Commits, PRs, files and handoffs — the output side of the ledger."""
+        code, out = self._run("stats")
+        self.assertEqual(code, 0)
+        self.assertIn("What it produced", out)
+        self.assertIn("commits", out)
+        self.assertIn("1 recorded (1 distinct)", out)   # one commit, one PR
+        self.assertIn("1 created · 2 edited", out)      # files
+        self.assertIn("2 checkpoints written", out)
+        self.assertIn("What it cost", out)
+        self.assertIn("How it was done", out)           # delegation section
+        self.assertIn("1 sub-agent calls", out)
+
+    def test_recent_hides_empty(self):
+        code, out = self._run("recent", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("Build Three.js portal", out)
+        self.assertNotIn("Empty session", out)  # zero-turn hidden
+        self.assertIn("sorted by active ↓", out)
+        self.assertIn("Sort: --sort active|turns|credits|skills|agents|summary|repo", out)
+
+    def test_all_shows_empty(self):
+        code, out = self._run("all", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("Empty session", out)
+
+    def test_search(self):
+        code, out = self._run("search", "portal")
+        self.assertEqual(code, 0)
+        self.assertIn("Three.js", out)
+
+    def test_search_shows_matching_text(self):
+        """Full-text hits carry the snippet that matched and where it's from."""
+        code, out = self._run("search", "globe")
+        self.assertEqual(code, 0)
+        self.assertIn("best match first", out)
+        self.assertIn("Three.js", out)          # the session
+        self.assertIn("spinning globe", out)    # the line that matched
+        self.assertIn("turn", out)              # where it came from
+
+    def test_search_finds_checkpoints_and_replies(self):
+        """Search reaches content the old summary/user-message scan missed."""
+        _, out = self._run("search", "live data")
+        self.assertIn("Three.js", out)
+        self.assertIn("next steps", out)  # matched a checkpoint, not a turn
+
+    def test_search_survives_punctuation(self):
+        """'three.js' and 'C++' are FTS5 syntax errors — they must still work."""
+        code, out = self._run("search", "three.js")
+        self.assertEqual(code, 0)
+        self.assertIn("Three.js portal", out)
+
+    def test_search_joins_multiple_words(self):
+        """'cs search a b' is one query, not a query plus a stray argument."""
+        code, out = self._run("search", "spinning", "globe")
+        self.assertEqual(code, 0)
+        self.assertIn("'spinning globe'", out)
+        self.assertIn("Three.js", out)
+
+    def test_search_supports_operators(self):
+        code, out = self._run("search", "globe OR packaging")
+        self.assertEqual(code, 0)
+        self.assertIn("Three.js", out)
+
+    def test_search_does_not_highlight_fts_operators(self):
+        from unittest import mock
+
+        from cs import cli, ui
+
+        with mock.patch.object(ui, "AMBER", "<hit>"), \
+                mock.patch.object(ui, "BOLD", ""), \
+                mock.patch.object(ui, "RST", "</hit>"), \
+                mock.patch.object(ui, "DIM", ""):
+            marked = cli._highlight("or deploy near failure", "deploy OR NEAR(failure)")
+        self.assertNotIn("<hit>or</hit>", marked.lower())
+        self.assertNotIn("<hit>near</hit>", marked.lower())
+        self.assertIn("<hit>deploy</hit>", marked)
+        self.assertIn("<hit>failure</hit>", marked)
+
+    def test_search_sort_overrides_relevance(self):
+        code, out = self._run("search", "portal", "--sort", "credits")
+        self.assertEqual(code, 0)
+        self.assertIn("sorted by credits ↓", out)
+        self.assertNotIn("best match first", out)
+
+    def test_search_without_fts_index(self):
+        """Older stores have no search_index — searching still works."""
+        import sqlite3 as sq
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute("DROP TABLE search_index")
+        conn.commit()
+        conn.close()
+        code, out = self._run("search", "charts")
+        self.assertEqual(code, 0)
+        self.assertIn("Three.js", out)  # found via the turns table
+
+    def test_cost(self):
+        code, out = self._run("cost", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("AI spend · last 7 days", out)
+        self.assertIn("4.00 AIU", out)            # 1.5 + 2.5 nano-AIU
+        self.assertIn("claude-opus-4.8", out)
+        self.assertIn("2 across 1 sessions", out)  # 2 calls, 1 session
+        self.assertIn("1 errors", out)             # one 'error' finish_reason
+        self.assertIn("portal", out)               # by-repository section
+
+    def test_spend_is_reported_per_vendor_whoever_the_vendor_is(self):
+        """Copilot routes across providers, so nothing here may assume one.
+
+        The fixture spends on an OpenAI model and an Anthropic one; both must
+        appear, named exactly as the store recorded them.
+        """
+        code, out = self._run("cost", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("gpt-5.5", out)
+        self.assertIn("claude-opus-4.8", out)
+
+    def test_cost_without_usage_table(self):
+        import sqlite3 as sq
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute("DROP TABLE assistant_usage_events")
+        conn.commit()
+        conn.close()
+        code, _ = self._run("cost")
+        self.assertEqual(code, 1)
+
+    def test_credentials_are_masked_everywhere(self):
+        """A secret in a session must not reach any view."""
+        import sqlite3 as sq
+
+        secrets = {
+            "aws": "AKIAIOSFODNN7EXAMPLE",
+            "github": "ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8",  # gitleaks:allow
+            "assignment": "hunter2trombone",
+            "url": "postgres://admin:s3cr3tP4ss@db.internal:5432/app",
+        }
+        blob = (
+            f"deploy with {secrets['aws']} and token {secrets['github']}\n"
+            f"password={secrets['assignment']}\n{secrets['url']}\n"
+        )
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute(
+            "INSERT INTO turns VALUES (7,'sess-alpha',5,?,?,'t')", (blob, blob)
+        )
+        conn.execute(
+            "INSERT INTO search_index (content, session_id, source_type) VALUES (?,?,?)",
+            (blob, "sess-alpha", "turn"),
+        )
+        conn.execute(
+            "UPDATE checkpoints SET next_steps = ? WHERE checkpoint_number = 2",
+            (f"- rotate {secrets['github']} then redeploy",),
+        )
+        conn.commit()
+        conn.close()
+
+        for args in (
+            ("read", "sess-alpha"),
+            ("brief", "sess-alpha"),
+            ("show", "sess-alpha"),
+            ("search", "deploy"),
+        ):
+            _, out = self._run(*args)
+            for label, secret in secrets.items():
+                with self.subTest(view=args[0], secret=label):
+                    self.assertNotIn(secret, out)
+            self.assertIn("[redacted", out.replace("[redacted]", "[redacted"))
+
+    def test_redaction_can_be_turned_off_deliberately(self):
+        from cs import redact
+
+        os.environ["CS_REDACT"] = "0"
+        self.addCleanup(os.environ.pop, "CS_REDACT", None)
+        self.assertFalse(redact.enabled())
+        self.assertIn("AKIAIOSFODNN7EXAMPLE", redact.redact("key AKIAIOSFODNN7EXAMPLE"))
+
+    def test_redaction_leaves_ordinary_text_alone(self):
+        """AI sessions talk about tokens constantly — those are not secrets."""
+        from cs import redact
+
+        for benign in (
+            "total tokens: 15234",
+            "max_tokens = 4096",
+            "the password is stored in the vault",
+            "token: the model reported",
+            "password=<your-password>",
+            "api_key: ${API_KEY}",
+            "secret: null",
+        ):
+            with self.subTest(text=benign):
+                self.assertEqual(redact.redact(benign), benign)
+
+    def test_redaction_masks_each_credential_shape(self):
+        from cs import redact
+
+        cases = {
+            "AKIAIOSFODNN7EXAMPLE": "aws-key-id",
+            "ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6": "github-token",
+            "xoxb-123456789012-abcdefghijkl": "slack-token",
+            "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUv": "api-key",
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.dBjftJeZ4CVP": "jwt",  # gitleaks:allow
+        }
+        for secret, kind in cases.items():
+            masked = redact.redact(f"value: {secret} end")
+            with self.subTest(kind=kind):
+                self.assertNotIn(secret, masked)
+                self.assertIn(kind, masked)
+        block = (
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKC\n-----END RSA PRIVATE KEY-----"
+        )
+        self.assertNotIn("MIIEowIBAAKC", redact.redact(block))
+
+    def test_redaction_masks_credentials_in_json_and_quoted_values(self):
+        """Transcripts are full of JSON payloads; a closing quote hid the value."""
+        from cs import redact
+
+        for text, secret in (
+            ('{"password": "aaaabbbbcccc"}', "aaaabbbbcccc"),
+            ('{"token":"aaaabbbbccccdddd"}', "aaaabbbbccccdddd"),
+            ('password = "aaaa bbbb cccc"', "aaaa bbbb cccc"),
+            ("Server=db;Password=p@ssw0rd;Database=app", "p@ssw0rd"),
+        ):
+            with self.subTest(text=text):
+                masked = redact.redact(text)
+                self.assertNotIn(secret, masked)
+                self.assertIn("[redacted]", masked)
+        # The rest of a connection string stays readable.
+        self.assertIn(
+            "Database=app", redact.redact("Server=db;Password=p@ssw0rd;Database=app")
+        )
+
+    def test_brief_digests_a_session(self):
+        """The brief answers 'what happened and what's left' without reading it all."""
+        code, out = self._run("brief", "sess-alpha")
+        self.assertEqual(code, 0)
+        # The opening ask and the final request, in full.
+        self.assertIn("First request", out)
+        self.assertIn("make a portal", out)
+        self.assertIn("Last request", out)
+        self.assertIn("add charts", out)
+        # Still open leads: it is the section that changes what you do next.
+        self.assertLess(out.index("Still open"), out.index("What got done"))
+        self.assertLess(out.index("Still open"), out.index("First request"))
+        # After that the session tells its own story in order: what was asked
+        # for, what came of it, where you left off. The outcome used to print
+        # before the request that caused it.
+        self.assertLess(out.index("First request"), out.index("What got done"))
+        self.assertLess(out.index("What got done"), out.index("Last request"))
+        # What got done and — the point of the whole view — what is still open.
+        self.assertIn("shipped the globe", out)
+        self.assertIn("Still open", out)
+        self.assertIn("point the charts at live data", out)
+        # Shipped refs and the headline spend.
+        self.assertIn("abc1234", out)
+        self.assertIn("#42", out)
+        self.assertIn("4.00 AIU", out)
+        # And a way through to the views this one is not.
+        self.assertIn("cs show sess-alpha", out)
+        self.assertIn("cs read sess-alpha", out)
+        self.assertIn("cs resume sess-alpha", out)
+
+    def test_the_three_session_views_do_not_repeat_each_other(self):
+        """show is the whole page, --short is its top, read is the words.
+
+        There used to be three views and a rule that no fact appeared in
+        two of them. The rule was sound and the split was not: brief
+        answered "what happened" and show answered "what it cost", and
+        nobody ever wanted one of those without the other, so every brief
+        was followed by a show. They are now one page, and the contract
+        that replaces the old one is a nesting rather than a partition —
+        `--short` prints a prefix of `show`, never a fact `show` omits,
+        and the transcript still belongs to `read` alone.
+        """
+        _, brief = self._run("brief", "sess-alpha")
+        _, show = self._run("show", "sess-alpha")
+        _, read = self._run("read", "sess-alpha")
+
+        # The inventory is what --short trades away, and the reason to
+        # ever type the long form.
+        for section in ("Files touched", "Models", "Conversation ·"):
+            with self.subTest(section=section):
+                self.assertIn(section, show)
+                self.assertNotIn(section, brief)
+                self.assertNotIn(section, read)
+        # The transcript is read's: show reports replies only as a size.
+        self.assertIn("sure, here it is", read)
+        self.assertNotIn("sure, here it is", show)
+        self.assertNotIn("sure, here it is", brief)
+        # The judgement leads both, because it is the thing a reader came
+        # for — the inventory is evidence for it, not a rival to it.
+        for section in ("Still open", "What got done", "Shipped"):
+            with self.subTest(section=section):
+                self.assertIn(section, brief)
+                self.assertIn(section, show)
+        # Nesting, stated directly: every heading --short prints, show
+        # prints too, in the same order.
+        def heads(out):
+            return [ln.strip()[1:].strip() for ln in out.split("\n")
+                    if ln.strip().startswith("▌")]
+
+        self.assertEqual(heads(brief), heads(show)[:len(heads(brief))])
+        # One header, one shape, and each view points at the others.
+        for out in (brief, show, read):
+            self.assertIn("volume", out)
+            self.assertIn("span", out)
+            self.assertIn("cs resume sess-alpha", out)
+        self.assertNotIn("|resume", brief + show + read)
+        # The short form has to say where the rest of it went.
+        self.assertIn("cs show sess-alpha", brief)
+        self.assertNotIn("cs show sess-alpha", show)
+
+    def test_brief_uses_the_latest_checkpoint(self):
+        """Checkpoints accumulate; only the newest describes the current state."""
+        _, out = self._run("brief", "sess-alpha")
+        self.assertIn("shipped the globe", out)          # checkpoint 2 work
+        self.assertIn("point the charts at live data", out)
+        self.assertNotIn("Built the first draft", out)   # checkpoint 1 work
+        self.assertNotIn("wire up the globe", out)       # its stale next step
+
+    def test_brief_without_a_checkpoint_falls_back(self):
+        """Most sessions have no checkpoint — the brief must still be useful."""
+        import sqlite3 as sq
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute("DELETE FROM checkpoints")
+        conn.commit()
+        conn.close()
+        code, out = self._run("brief", "sess-alpha")
+        self.assertEqual(code, 0)
+        self.assertIn("First request", out)
+        self.assertLess(out.index("First request"), out.index("Where it ended"))
+        self.assertIn("Where it ended", out)   # from the closing reply instead
+        self.assertIn("done", out)             # the last assistant response
+        # Files are show's, checkpoint or no checkpoint.
+        self.assertNotIn("Files touched", out)
+        self.assertIn("Files touched", self._run("show", "sess-alpha")[1])
+
+    def test_brief_drops_harness_injected_blocks(self):
+        """`<system_reminder>` blocks are not things the user asked."""
+        import sqlite3 as sq
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute(
+            "INSERT INTO turns VALUES (9,'sess-alpha',2,?,'ok','z')",
+            ("<system_reminder>\nCustom instructions from repo/.github/x.md\n"
+             "SECRET-INSTRUCTION-TEXT\n</system_reminder>",),
+        )
+        conn.commit()
+        conn.close()
+        _, out = self._run("brief", "sess-alpha")
+        self.assertNotIn("SECRET-INSTRUCTION-TEXT", out)
+        self.assertNotIn("system_reminder", out)
+        # The turn is still counted. Filtering it out of the count was a
+        # habit from when brief was a separate screen and could hold its
+        # own opinion of how big a session was; now that the count and the
+        # conversation index share a page, a header saying 2 above an index
+        # listing 3 is a bug a reader can see. The block is dropped from
+        # the prose, which is where it does harm, and nowhere else.
+        self.assertIn("3 turns", out)
+        _, listed = self._run("brief", "sess-alpha", "--asks")
+        self.assertIn("Every request · 2", listed)  # only two are real asks
+
+    def test_brief_never_truncates_mid_sentence(self):
+        """A half-line is not information — long items wrap instead of clipping."""
+        import sqlite3 as sq
+
+        sentence = (
+            "commit the no-secrets skill to acmeco/webshop-dotfiles and then verify "
+            "with git status that only the two expected paths appear in the diff"
+        )
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute(
+            "UPDATE checkpoints SET next_steps = ? WHERE checkpoint_number = 2",
+            ("- " + sentence,),
+        )
+        conn.commit()
+        conn.close()
+        _, out = self._run("brief", "sess-alpha")
+        self.assertNotIn("…", out.split("Still open")[1].split("What got done")[0])
+        # Every word survives, across however many lines it took.
+        flattened = " ".join(out.split())
+        self.assertIn(sentence, flattened)
+
+    def test_brief_asks_flag_lists_every_request(self):
+        _, plain = self._run("brief", "sess-alpha")
+        self.assertNotIn("Every request", plain)
+        _, full = self._run("brief", "sess-alpha", "--asks")
+        self.assertIn("Every request · 2", full)
+        self.assertIn("make a portal", full)
+        self.assertEqual(self._run("brief", "sess-alpha", "--nope")[0], 1)
+
+    def test_path_extraction_ignores_prose(self):
+        """Checkpoint files are prose; only real paths should be listed."""
+        from cs.cli import _paths
+
+        text = (
+            "`/tmp/a/build.py` handles reads/writes for `acmeco/dotfiles`.\n"
+            "Also `~/.config/app/` and `sync.sh`, see docs/guide.md.\n"
+            "Written in Node.js, version v1.2 — neither is a file."
+        )
+        found = _paths(text, 10)
+        self.assertIn("/tmp/a/build.py", found)
+        self.assertIn("~/.config/app/", found)
+        self.assertIn("sync.sh", found)              # bare name, but backticked
+        self.assertIn("docs/guide.md", found)
+        self.assertNotIn("reads/writes", found)      # prose with a slash
+        self.assertNotIn("acmeco/dotfiles", found)   # a repo, not a path
+        # A bare word with a dot is only a path when the author marked it as
+        # code — otherwise "Node.js" and "v1.2" would litter every brief.
+        self.assertNotIn("Node.js", found)
+        self.assertNotIn("v1.2", found)
+
+    def test_brief_rejects_unknown_session(self):
+        self.assertEqual(self._run("brief")[0], 1)
+        self.assertEqual(self._run("brief", "nope")[0], 1)
+
+    def test_read_shows_the_whole_conversation(self):
+        """cs read prints both sides in full — cs show only summarises them."""
+        code, out = self._run("read", "sess-alpha")
+        self.assertEqual(code, 0)
+        self.assertIn("make a portal", out)        # the prompt
+        self.assertIn("sure, here it is", out)     # the reply, which cs show omits
+        self.assertIn("add charts", out)
+        self.assertIn("Turn 0", out)
+        self.assertIn("Turn 1", out)
+
+        # cs show still reports the reply only as a size, which is why cs read exists.
+        _, shown = self._run("show", "sess-alpha")
+        self.assertNotIn("sure, here it is", shown)
+
+    def test_read_single_turn(self):
+        code, out = self._run("read", "sess-alpha", "--turn", "1")
+        self.assertEqual(code, 0)
+        self.assertIn("add charts", out)
+        self.assertNotIn("make a portal", out)      # turn 0 is left out
+        _, missing = self._run("read", "sess-alpha", "--turn", "99")
+        self.assertIn("no turn #99", missing)
+
+    def test_ctrl_c_quits_the_listing_without_a_traceback(self):
+        """Ctrl-C at the key prompt is a quit, not a crash."""
+        from cs.cli import _listing_tui
+
+        class Interrupting(Screen):
+            def getch(self):
+                if self.no_wait and not self.keys:
+                    return -1
+                raise KeyboardInterrupt
+
+        rows = [("id-one", "2026-08-01T10:00", "One", "r/a", "/tmp", 1, 10)]
+        self.assertIsNone(_listing_tui(Interrupting(), rows, "Sessions"))
+
+    def test_ctrl_c_anywhere_else_exits_quietly(self):
+        from unittest import mock
+
+        from cs.cli import main
+
+        with mock.patch("cs.cli._dispatch", side_effect=KeyboardInterrupt):
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(main(["recent"]), 130)
+        self.assertNotIn("Traceback", out.getvalue())
+
+    def test_closed_pipe_is_not_an_error(self):
+        """`cs recent | head` closes the pipe early — that is a success."""
+        from unittest import mock
+
+        from cs.cli import main
+
+        with mock.patch("cs.cli._dispatch", side_effect=BrokenPipeError):
+            self.assertEqual(main(["recent"]), 0)
+
+    def test_paging_reports_whether_it_paged(self):
+        """The caller needs to know: a dismissed pager must not also pause."""
+        from unittest import mock
+
+        from cs.cli import _page
+
+        long_text = "\n".join(f"line {i}" for i in range(500))
+        mock.patch("cs.cli._less_wheel_lines", return_value=False).start()
+        self.addCleanup(mock.patch.stopall)
+        screen = mock.patch(
+            "cs.cli.shutil.get_terminal_size", return_value=os.terminal_size((100, 24))
+        )
+
+        # Not a TTY → printed inline, no pager, caller must pause.
+        with mock.patch("sys.stdout.isatty", return_value=False):
+            with redirect_stdout(io.StringIO()):
+                self.assertFalse(_page(long_text))
+
+        # A TTY with more text than fits → pager runs, caller must not pause.
+        with mock.patch("sys.stdout.isatty", return_value=True), \
+             screen, mock.patch("cs.cli.subprocess.run") as run:
+            self.assertTrue(_page(long_text))
+            self.assertEqual(run.call_count, 1)
+
+        # Short text on a TTY stays inline — nothing to dismiss, so pause.
+        with mock.patch("sys.stdout.isatty", return_value=True), \
+             screen, mock.patch("cs.cli.subprocess.run") as run:
+            with redirect_stdout(io.StringIO()):
+                self.assertFalse(_page("one line"))
+            self.assertEqual(run.call_count, 0)
+
+        # No pager on the system → fall back to printing, and pause.
+        with mock.patch("sys.stdout.isatty", return_value=True), \
+             screen, mock.patch("cs.cli.subprocess.run", side_effect=OSError):
+            with redirect_stdout(io.StringIO()):
+                self.assertFalse(_page(long_text))
+
+    def test_pager_gets_mouse_support_when_less_is_new_enough(self):
+        """Scrolling beats arrow-walking — but only less 551+ can do it."""
+        from unittest import mock
+
+        import cs.cli as cli
+
+        def version(text):
+            return mock.Mock(stdout=text)
+
+        cli._LESS_MOUSE.clear()
+        with mock.patch("cs.cli.subprocess.run", return_value=version("less 668\n")):
+            self.assertTrue(cli._less_wheel_lines("less"))
+        cli._LESS_MOUSE.clear()
+        with mock.patch("cs.cli.subprocess.run", return_value=version("less 487\n")):
+            self.assertFalse(cli._less_wheel_lines("less"))
+        cli._LESS_MOUSE.clear()
+        with mock.patch("cs.cli.subprocess.run", side_effect=OSError):
+            self.assertFalse(cli._less_wheel_lines("less"))
+
+        # The answer is cached, so the probe runs once per binary.
+        cli._LESS_MOUSE.clear()
+        with mock.patch("cs.cli.subprocess.run", return_value=version("less 668")) as run:
+            cli._less_wheel_lines("less")
+            cli._less_wheel_lines("less")
+            self.assertEqual(run.call_count, 1)
+        cli._LESS_MOUSE.clear()
+
+    def test_pager_command_carries_the_mouse_flags(self):
+        from unittest import mock
+
+        from cs.cli import _page
+
+        long_text = "\n".join(f"line {i}" for i in range(500))
+        with mock.patch("sys.stdout.isatty", return_value=True), \
+             mock.patch.dict(os.environ, {"PAGER": "less"}), \
+             mock.patch("cs.cli.shutil.get_terminal_size",
+                        return_value=os.terminal_size((100, 24))), \
+             mock.patch("cs.cli._less_wheel_lines", return_value=True), \
+             mock.patch("cs.cli.subprocess.run") as run:
+            _page(long_text)
+        argv = run.call_args[0][0]
+        self.assertIn("--mouse", argv)
+        self.assertIn("--wheel-lines=3", argv)
+        self.assertIn("-R", argv)
+
+    def test_read_reports_paging_to_its_caller(self):
+        from unittest import mock
+
+        from cs.cli import cmd_read
+
+        with mock.patch("cs.cli._page", return_value=True) as page:
+            self.assertTrue(cmd_read("sess-alpha"))
+            self.assertEqual(page.call_count, 1)
+        # A session with no turns pages nothing, so the caller still pauses.
+        with redirect_stdout(io.StringIO()):
+            self.assertFalse(cmd_read("sess-empty"))
+
+    def test_pause_discards_keys_typed_before_the_prompt(self):
+        """A 'q' meant for the pager must not answer the next question."""
+        from unittest import mock
+
+        from cs.cli import _pause
+
+        with mock.patch("cs.cli._drain_stdin") as drain, \
+             mock.patch("builtins.input", return_value="") as prompt:
+            self.assertTrue(_pause("x"))
+            drain.assert_called_once()
+            # The flush happens before anything is read.
+            self.assertEqual(drain.call_count, 1)
+            self.assertEqual(prompt.call_count, 1)
+
+    def test_read_rejects_bad_input(self):
+        self.assertEqual(self._run("read")[0], 1)                        # no session
+        self.assertEqual(self._run("read", "nope")[0], 1)                # unknown id
+        self.assertEqual(self._run("read", "sess-alpha", "--turn", "x")[0], 1)
+        self.assertEqual(self._run("read", "sess-alpha", "--wat")[0], 1)
+
+    def test_markdown_rendering_rules(self):
+        """The shapes assistant replies actually use, rendered not dumped."""
+        from cs import ui
+
+        bullet = ui.markdown("- a bullet whose text runs past the edge here", 34)
+        self.assertTrue(all(len(line) <= 40 for line in bullet))
+        self.assertTrue(bullet[0].lstrip().startswith("•"))
+        # Continuation hangs under the text, not under the bullet.
+        self.assertTrue(bullet[1].startswith("      "))
+
+        # Fenced code keeps its own alignment and is never reflowed or cut.
+        long_line = "x = " + "y" * 120
+        code = ui.markdown(f"```python\n    {long_line}\n```", 40)
+        self.assertTrue(any(long_line in line for line in code))
+
+        # Headings render as text, not as '###'.
+        self.assertNotIn("##", "".join(ui.markdown("## Heading", 40)))
+
+        # Without colour, inline markers are stripped rather than shown raw.
+        rendered = " ".join(ui.markdown("use `cs read` for **everything**", 60))
+        self.assertNotIn("`", rendered)
+        self.assertNotIn("**", rendered)
+        self.assertIn("cs read", rendered)
+
+    def test_markdown_styling_survives_wrapping(self):
+        """A bold span broken over two lines used to leak its '**' markers."""
+        from cs import ui
+
+        lines = ui.markdown(
+            "Your last presentation session is **the Q1 Presentation Deck** today.", 44
+        )
+        self.assertGreater(len(lines), 1)          # it really did wrap
+        self.assertNotIn("*", "".join(lines))
+        self.assertIn("Q1 Presentation Deck", " ".join(part.strip() for part in lines))
+
+    def test_markdown_tables_render_as_aligned_columns(self):
+        """Raw '| a | b |' pipes are the least readable thing on the screen."""
+        from cs import ui
+
+        lines = [
+            line for line in ui.markdown(
+                "| Step | Status |\n|---|---|\n"
+                "| Deploy the portal | ✅ done |\n| Verify headless | ⬜ pending |",
+                60,
+            ) if line.strip()
+        ]
+        self.assertNotIn("|", "".join(lines))
+        self.assertIn("─", lines[1])               # header rule, not '|---|'
+        # Emoji take two columns, so 'done' and 'pending' still line up.
+        starts = {
+            line.index("done") if "done" in line else line.index("pending")
+            for line in lines if "done" in line or "pending" in line
+        }
+        self.assertEqual(len(starts), 1)
+
+    def test_a_long_transcript_offers_a_way_in(self):
+        """Turn headers name the ask, so scrolling says where you are."""
+        code, out = self._run("read", "sess-alpha")
+        self.assertEqual(code, 0)
+        self.assertIn("Turn 0 · make a portal", out)
+
+    def test_files_finds_sessions_that_touched_a_path(self):
+        code, out = self._run("files", "globe.js")
+        self.assertEqual(code, 0)
+        self.assertIn("Three.js portal", out)     # sess-alpha edited it
+        self.assertIn("edit", out)                # and what it did
+        self.assertIn("globe.js", out)
+
+    def test_files_matches_wildcards_and_partials(self):
+        _, exact = self._run("files", "portal/index.html")
+        self.assertIn("Three.js portal", exact)
+        self.assertIn("Empty session", exact)     # both sessions touched it
+        _, glob = self._run("files", "*.js")
+        self.assertIn("Three.js portal", glob)
+        self.assertNotIn("Empty session", glob)   # it never touched a .js file
+        # A glob matches the tail of an absolute path without a leading '*'.
+        _, tail = self._run("files", "portal/*.js")
+        self.assertIn("Three.js portal", tail)
+        # A full path works as well, and a wildcard one can be anchored.
+        self.assertIn("Three.js portal", self._run("files", "/tmp/a/portal/globe.js")[1])
+        self.assertIn("Three.js portal", self._run("files", "/tmp/a/*.js")[1])
+        self.assertIn("No sessions found", self._run("files", "/nope/*.js")[1])
+        _, none = self._run("files", "nothing-here")
+        self.assertIn("No sessions found", none)
+
+    def test_files_needs_a_path_to_look_up(self):
+        """The bare form was a leaderboard of the most worked-on files, which
+        led nowhere: the busiest path in a real store is a README touched nine
+        times. Without a path there is nothing to answer, so it says so."""
+        code, out = self._run("files")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+
+    def test_show_lists_files_touched(self):
+        code, out = self._run("show", "sess-alpha")
+        self.assertEqual(code, 0)
+        self.assertIn("Files touched", out)
+        self.assertIn("1 created", out)
+        self.assertIn("index.html", out)
+
+    def test_files_without_the_table(self):
+        """Older stores have no session_files — the commands still behave."""
+        import sqlite3 as sq
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute("DROP TABLE session_files")
+        conn.commit()
+        conn.close()
+        code, out = self._run("files", "globe.js")
+        self.assertEqual(code, 0)
+        self.assertIn("No sessions found", out)
+        self.assertEqual(self._run("show", "sess-alpha")[0], 0)
+
+    def test_agents_reports_delegation(self):
+        """Who initiated the work — the signal only the usage events carry."""
+        code, out = self._run("agents", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("Delegation", out)
+        self.assertIn("Who initiated the work", out)
+        self.assertIn("sub-agents", out)   # fixture has one sub-agent call
+        self.assertIn("you", out)          # and one user-initiated call
+
+    def test_work_split_accounts_for_every_call(self):
+        """Spend the store labels oddly — or not at all — still has to appear.
+
+        Older sessions recorded no initiator, and a breakdown naming only the
+        kinds we know left that spend out while the total above it counted it.
+        """
+        import sqlite3 as sq
+
+        path = Path(os.environ["COPILOT_HOME"]) / "session-store.db"
+        conn = sq.connect(path)
+        session = conn.execute(
+            "SELECT session_id FROM assistant_usage_events LIMIT 1"
+        ).fetchone()[0]
+        conn.executemany(
+            """INSERT INTO assistant_usage_events
+               (session_id, turn_index, model, total_nano_aiu, initiator, agent_id)
+               VALUES (?,0,'gpt-5.6-sol',7000000000,?,NULL)""",
+            [(session, None), (session, "some-future-kind")],
+        )
+        conn.commit()
+        conn.close()
+
+        code, out = self._run("show", session)
+        self.assertEqual(code, 0)
+        split = out.split("How the work was done", 1)[1]
+        self.assertIn("other", split.split("Models", 1)[0])
+
+    def test_agents_without_initiator_columns(self):
+        """Older stores lack the columns; say so rather than inventing zeros."""
+        import sqlite3 as sq
+
+        path = Path(os.environ["COPILOT_HOME"]) / "session-store.db"
+        conn = sq.connect(path)
+        conn.executescript(
+            """
+            CREATE TABLE tmp AS SELECT session_id, turn_index, model,
+                   total_nano_aiu FROM assistant_usage_events;
+            DROP TABLE assistant_usage_events;
+            ALTER TABLE tmp RENAME TO assistant_usage_events;
+            """
+        )
+        conn.commit()
+        conn.close()
+        self.assertEqual(self._run("agents")[0], 1)
+        # Everything that does not need those columns still works, including
+        # the reports that normally read the token detail.
+        for args in (("show", "sess-alpha"), ("stats",), ("cost", "7"),
+                     ("brief", "sess-alpha"), ("recent", "7")):
+            with self.subTest(command=args[0]):
+                self.assertEqual(self._run(*args)[0], 0)
+
+    def test_skills_inventory_counts_qualified_references(self):
+        """Configured versus referenced, without counting ordinary English."""
+        import sqlite3 as sq
+
+        skills = Path(os.environ["COPILOT_HOME"]) / "skills"
+        skills.mkdir()
+        (skills / "deploy-check").mkdir()
+        (skills / "commit.skill.md").write_text("x")
+        (skills / "never-used.md").write_text("x")
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute(
+            "INSERT INTO turns VALUES (20,'sess-alpha',9,?,?,'t')",
+            ("run skills/deploy-check now", "I will commit the change"),
+        )
+        conn.commit()
+        conn.close()
+
+        code, out = self._run("skills")
+        self.assertEqual(code, 0)
+        self.assertIn("3 on disk", out)
+        self.assertIn("deploy-check", out)
+        # 'commit' appears in prose only, so it is not counted as a reference.
+        self.assertIn("Never referenced", out)
+        self.assertIn("never-used", out)
+
+    def test_reference_matching_is_precision_first(self):
+        """Skills are named `commit` and `status`; only strong evidence counts."""
+        import sqlite3 as sq
+
+        from cs import db
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.executemany(
+            "INSERT INTO turns (session_id, turn_index, user_message, "
+            "assistant_response, timestamp) VALUES (?,?,?,?,'t')",
+            [
+                # Strong: the asset's own path, its filename, the word beside it.
+                ("sess-alpha", 30, "run skills/deploy-check", "done"),
+                ("sess-alpha", 31, "see commit.skill.md", "ok"),
+                ("sess-alpha", 32, "use the handover skill", "ok"),
+                # Weak: git prose, code spans and repo paths are NOT references.
+                ("sess-empty", 33, "please commit this", "`git add`/`commit` then push"),
+                ("sess-empty", 34, "check `status()`", "repo acmeco/mule-http"),
+                ("sess-empty", 35, "read .github/workflows/ci.yml", "`oracle-osb` differs"),
+                # Nor is a longer asset that merely starts with a known name:
+                # the alternation stopped at a word boundary and counted these.
+                ("sess-empty", 36, "see agents/mule-triage.agent.md", "ok"),
+                ("sess-empty", 37, "see agents/handover-deckforge", "ok"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        conn = db.connect()
+        counts = db.reference_counts(
+            conn, ["deploy-check", "commit", "handover", "status", "mule", "oracle",
+                  "mule-triage"]
+        )
+        conn.close()
+        self.assertEqual(counts["deploy-check"], 1)   # skills/deploy-check
+        self.assertEqual(counts["commit"], 1)         # commit.skill.md, not git prose
+        self.assertEqual(counts["handover"], 1)       # "the handover skill"
+        self.assertEqual(counts["status"], 0)         # `status()` is code
+        self.assertEqual(counts["mule"], 0)           # acmeco/mule-http is a repo
+        self.assertEqual(counts["oracle"], 0)         # `oracle-osb` is a product
+        # agents/mule-triage is its own asset, and so is handover-deckforge.
+        self.assertEqual(counts["mule-triage"], 1)
+        self.assertEqual(counts["handover"], 1, "handover-deckforge counted as handover")
+
+    def test_per_session_assets_are_listed(self):
+        """The session views name the skills and agents that session used."""
+        import sqlite3 as sq
+
+        skills = Path(os.environ["COPILOT_HOME"]) / "skills"
+        skills.mkdir(exist_ok=True)
+        (skills / "deploy-check.skill.md").write_text("x")
+        agents = Path(os.environ["COPILOT_HOME"]) / "agents"
+        agents.mkdir(exist_ok=True)
+        (agents / "reviewer.agent.md").write_text("x")
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute(
+            "INSERT INTO turns (session_id, turn_index, user_message, "
+            "assistant_response, timestamp) VALUES ('sess-alpha',40,?,?,'t')",
+            ("run skills/deploy-check", "handing to agents/reviewer"),
+        )
+        conn.commit()
+        conn.close()
+
+        # What a session reached for is inventory, so show owns it outright.
+        _, out = self._run("show", "sess-alpha")
+        self.assertIn("Skills & agents", out)
+        self.assertIn("deploy-check", out)
+        self.assertIn("reviewer", out)
+        # Nothing loaded a skill here, so both are claims about text and
+        # both must arrive with the words they were read from.
+        self.assertIn("named", out)
+        self.assertIn("run skills/deploy-check", out)
+        self.assertNotIn("Skills & agents", self._run("brief", "sess-alpha")[1])
+
+    def test_delegation_counts_tasks_not_agent_identities(self):
+        """agent_id is a tool-call id, so it counts delegations, not agents."""
+        _, out = self._run("agents", "7")
+        self.assertIn("handed to sub-agents", out)
+        self.assertNotIn("distinct agents", out)
+        self.assertIn("records no agent name", out)
+
+    def test_spend_views_keep_their_columns(self):
+        """A number gaining a digit used to shove everything after it out of line."""
+
+        import cs.cli as cli
+
+        def plain(text: str) -> str:
+            return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+        header = cli._spend_header("model", f"{'calls':>9}{'avg':>7}{'first':>7}")
+        # The bar arrives already the width of its column — a coloured bar is
+        # mostly escape characters, so the row cannot pad it and does not try.
+        rows = [
+            cli._spend_row("116.7k", "claude-opus-5", cli._bar(9, 10, 18),
+                           f"{10851:>9,}{'11.5s':>7}{'4.3s':>7}"),
+            cli._spend_row("47.0", "gemini-3.6-flash", cli._bar(0, 10, 18),
+                           f"{34:>9,}{'3.5s':>7}{'1.6s':>7}"),
+        ]
+        widths = {len(plain(line).rstrip()) for line in [header, *rows]}
+        self.assertEqual(len(widths), 1, f"ragged spend columns: {widths}")
+
+        _, out = self._run("stats", "7")
+        fields = [line for line in plain(out).split("\n") if re.match(r"^  [a-z]", line)]
+        self.assertTrue(fields)
+        for line in fields:
+            self.assertEqual(line[10], " ", f"label crowds its value: {line!r}")
+            self.assertNotEqual(line[11], " ", f"value starts late: {line!r}")
+
+    def test_hints_shrink_instead_of_being_cut_off(self):
+        """A fixed hint string was truncated, hiding 't transcript' and 'q'."""
+        import cs.cli as cli
+
+        for width in range(10, 130):
+            line = cli._hint_line(width, mouse=True)
+            self.assertLessEqual(ui_cells(line), max(width, len("q quit")))
+            self.assertIn("q quit", line, f"no way out at {width} columns")
+        self.assertIn("t transcript", cli._hint_line(140, mouse=False))
+        self.assertIn("q home", cli._hint_line(140, mouse=False, back="home"))
+
+    def test_home_menu_is_wired_up(self):
+        """Every landing-screen entry names itself and has something to run."""
+        import cs.cli as cli
+        from cs import ui
+
+        items = cli._home_items()
+        self.assertGreater(len(items), 5)
+        for icon, label, description, action, asks in items:
+            self.assertTrue(label and description, f"unlabelled entry: {label!r}")
+            self.assertTrue(callable(action), f"{label} has nothing to run")
+            self.assertIn(asks, ("", "term", "period"), f"{label}: odd ask {asks!r}")
+            # Two cells, so the label column starts in the same place on
+            # every row; anything wider shoves that row's text sideways.
+            self.assertEqual(ui.cells(icon), 2, f"{label}: icon is not 2 cells")
+        self.assertEqual(len({item[0] for item in items}), len(items),
+                         "two entries share an icon")
+        self.assertEqual([item[1] for item in items if item[4] == "term"],
+                         ["Search"], "only search asks for text")
+        self.assertTrue([item for item in items if item[4] == "period"],
+                        "nothing offers a window to count over")
+        code, out = self._run("home")
+        self.assertEqual(code, 0)
+        self.assertIn("Sessions", out)
+
+    def test_every_menu_entry_can_actually_be_opened(self):
+        """Choosing a row ran its action blind — one of them was not callable."""
+        import curses
+        from unittest import mock
+
+        import cs.cli as cli
+
+        items = cli._home_items()
+        picks: list = [*range(len(items)), (2, "portal"), None]
+
+        def fake_wrapper(view, *_args):
+            # The menu hands back a choice; a listing hands back 'user quit'.
+            return picks.pop(0) if view is cli._home_tui else None
+
+        out = _Tty()
+        with mock.patch.object(curses, "wrapper", fake_wrapper), \
+                mock.patch.object(cli, "_page", lambda _text, _sort=None: True), \
+                mock.patch.object(cli, "_pause", lambda _message: True), \
+                mock.patch.object(sys, "stdin", mock.Mock(isatty=lambda: True)), \
+                redirect_stdout(out):
+            cli.cmd_home()
+        self.assertEqual(picks, [], "the menu stopped before trying every entry")
+        self.assertFalse(cli._HOME_ACTIVE, "the menu flag outlived the menu")
+        # Files printed its report straight past the menu instead of showing it
+        # in the reader, so it alone dropped out of the UI and could not go back.
+        self.assertEqual(out.getvalue(), "", "a menu entry printed outside the UI")
+
+    def test_esc_gets_you_back_and_q_still_quits(self):
+        """Esc typed into input() was just a character, so it did nothing."""
+        from unittest import mock
+
+        import cs.cli as cli
+
+        for key, expected in [("\x1b", True), ("\r", True), (" ", True),
+                              ("q", False), ("Q", False), ("", False)]:
+            with redirect_stdout(io.StringIO()), \
+                    mock.patch.object(cli, "_read_key", return_value=key):
+                self.assertIs(cli._pause("x "), expected, f"key {key!r}")
+
+    def test_the_way_out_of_the_pager_is_always_on_screen(self):
+        """less cannot treat Esc as back, so from the menu we read in place."""
+        from unittest import mock
+
+        import cs.cli as cli
+
+        long_text = "line\n" * 500
+        with mock.patch.object(cli, "_HOME_ACTIVE", True), \
+                mock.patch("sys.stdout.isatty", return_value=True), \
+                mock.patch.object(cli, "_read_in_place", return_value=True) as reader, \
+                mock.patch.object(cli.subprocess, "run") as run:
+            self.assertTrue(cli._page(long_text))
+        self.assertTrue(reader.called, "the menu still shelled out to a pager")
+        self.assertFalse(run.called, "less was run even though Esc must mean back")
+
+        # Away from the menu the user's own pager is still the right answer.
+        with mock.patch.object(cli, "_HOME_ACTIVE", False), \
+                mock.patch("sys.stdout.isatty", return_value=True), \
+                mock.patch.object(cli, "_less_wheel_lines", return_value=False), \
+                mock.patch.object(cli.subprocess, "run") as run:
+            self.assertTrue(cli._page(long_text))
+        self.assertTrue(run.called, "the pager was skipped outside the menu")
+
+        # A reader that cannot start must fall back, never swallow the report.
+        with mock.patch.object(cli, "_HOME_ACTIVE", True), \
+                mock.patch("sys.stdout.isatty", return_value=True), \
+                mock.patch.object(cli, "_read_in_place", return_value=False), \
+                mock.patch.object(cli, "_less_wheel_lines", return_value=False), \
+                mock.patch.object(cli.subprocess, "run") as run:
+            cli._page(long_text)
+        self.assertTrue(run.called, "no reader and no pager loses the report")
+
+        # A report that fits still has to stay in the UI: printing it drops the
+        # user out of the menu with no way back.
+        with mock.patch.object(cli, "_HOME_ACTIVE", True), \
+                mock.patch.object(cli, "_read_in_place", return_value=True) as reader, \
+                redirect_stdout(_Tty()) as printed:
+            self.assertTrue(cli._page("short\n"))
+        self.assertTrue(reader.called, "a short report escaped the menu")
+        self.assertEqual(printed.getvalue(), "")
+
+    def test_report_colour_survives_the_move_into_curses(self):
+        """The reports are ANSI strings; curses needs them as attribute runs."""
+        from cs import ui
+
+        palette = {"1": 1 << 8, "2": 1 << 9, "36": 1 << 10}
+        esc = "\x1b"
+        runs = ui.sgr_runs(f"{esc}[1mBold{esc}[0m plain{esc}[36mcyan", palette)
+        self.assertEqual([text for text, _ in runs], ["Bold", " plain", "cyan"])
+        self.assertEqual(runs[0][1], 1 << 8)
+        self.assertEqual(runs[1][1], 0, "reset did not clear the attribute")
+        self.assertEqual(runs[2][1], 1 << 10)
+        self.assertEqual(ui.sgr_runs("no codes here", palette), [("no codes here", 0)])
+        self.assertEqual(ui.sgr_runs(f"{esc}[38;5;244mgrey", {"38;5;244": 7}), [("grey", 7)])
+
+    def test_the_readers_way_out_survives_a_narrow_window(self):
+        import cs.cli as cli
+        from cs import ui
+
+        hints = [("↑/↓ scroll", "↑↓", 3), ("space page", "space", 2),
+                 ("Esc back", "Esc", 0), ("q quits", "q", 0)]
+        for width in range(6, 60):
+            line = cli._fit_hints(list(hints), width)
+            self.assertIn("Esc", line, f"no way back at width {width}")
+            self.assertIn("q", line)
+            if width >= ui.cells("Esc · q"):
+                self.assertLessEqual(ui.cells(line), width)
+
+    def test_a_listing_with_nothing_in_it_is_not_wiped(self):
+        """Returning True meant 'I waited', so an empty result flashed and went."""
+        from unittest import mock
+
+        import cs.cli as cli
+
+        with redirect_stdout(io.StringIO()) as buf:
+            waited = cli._interactive_listing([], "Search · nothing · 0 sessions",
+                                              show_all=True)
+        self.assertFalse(waited, "an empty listing never waited for the user")
+        self.assertIn("0 sessions", buf.getvalue())
+
+        # The commands must pass that answer up, or the menu still redraws over it.
+        with redirect_stdout(io.StringIO()), \
+                mock.patch.object(cli, "_interactive_listing", return_value=False), \
+                mock.patch("sys.stdin.isatty", return_value=True), \
+                mock.patch("sys.stdout.isatty", return_value=True):
+            self.assertFalse(cli.cmd_search("portal"))
+            self.assertFalse(cli.cmd_recent(3650))
+            self.assertFalse(cli.cmd_files("globe.js"))
+
+    def test_a_session_that_recorded_nothing_is_not_listed_at_all(self):
+        """A fifth of `cs all` was sessions the CLI opened and closed without
+        a single exchange — no turns, no summary, no credits, and nothing in
+        any other table. There is nothing to read, brief or review, so they
+        only padded the view out.
+
+        All three conditions are required, not turns alone: a zero-turn
+        session that was given a name, or that spent credits, recorded
+        something and stays. Dropping a row never hides a session from
+        `resume` — ids resolve against the store, not the listing.
+        """
+        import sqlite3 as sq
+
+        import cs.cli as cli
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        # Blank on every axis — the one that goes.
+        conn.execute(
+            "INSERT INTO sessions VALUES ('sess-unused','/tmp/c',NULL,'local',NULL,"
+            "NULL, datetime('now'), datetime('now'))"
+        )
+        # No summary, but it has a turn: genuinely untitled, and it stays.
+        conn.execute(
+            "INSERT INTO sessions VALUES ('sess-noname','/tmp/d',NULL,'local',NULL,"
+            "NULL, datetime('now'), datetime('now'))"
+        )
+        conn.execute("INSERT INTO turns VALUES (900,'sess-noname',0,'do a thing','ok','z')")
+        conn.commit()
+        conn.close()
+
+        blank = ("sess-unused", "2026-01-01 00:00", "", "", "/tmp/c", 0, 0)
+        self.assertTrue(cli._never_used(blank))
+        self.assertFalse(cli._never_used(blank[:5] + (1, 0)), "a turn is content")
+        self.assertFalse(cli._never_used(blank[:5] + (0, 42)), "credits are content")
+        self.assertFalse(
+            cli._never_used(("x", "t", "Named", "", "", 0, 0)), "a name is content"
+        )
+
+        for command in ("all", "recent"):
+            with self.subTest(command=command):
+                code, out = self._run(command, "3650")
+                self.assertEqual(code, 0)
+                self.assertNotIn("(never used)", out)
+                self.assertNotIn("sess-unused", out)
+
+        # The zero-turn session that has a name is still carried by `cs all`.
+        _, all_out = self._run("all", "3650")
+        self.assertIn("Empty session", all_out)
+        self.assertIn("(untitled)", all_out)          # sess-noname, which has a turn
+        # …and the header counts what it actually shows.
+        import re as _re
+        shown = len(_re.findall(r"^\s+\d+\s+\d\d:\d\d\s", all_out, _re.M))
+        self.assertIn(f"{shown} total", all_out)
+
+        # Dropping it from the listing does not hide it from resume: the id
+        # still resolves, which is what `cs resume <id>` depends on.
+        self.assertEqual(cli._resolve_ref("sess-unused"), "sess-unused")
+        code, _ = self._run("show", "sess-unused")
+        self.assertEqual(code, 0)
+
+    def test_the_session_count_agrees_with_the_sessions_you_can_list(self):
+        """The landing strip said 963 sessions and `cs all` listed 955.
+
+        Both numbers were right about their own question and neither said
+        which it was answering: `db.stats` counted rows, the listing counted
+        sessions that recorded something. The count is the first thing on the
+        screen and `All sessions` is the row directly under it, so the two
+        disagreeing made the header look broken.
+
+        This is the guard on the *pair*, not on either number: the rule now
+        exists twice — as SQL in `db.stats` and as `_never_used` over a
+        listing row — and the only thing that keeps a change to one from
+        quietly desyncing the other is a test that runs both.
+        """
+        from cs import cli, db
+
+        conn = db.connect()
+        try:
+            counted = db.stats(conn)["total"]
+            listed = cli._visible(db.recent_sessions(conn, 0), show_all=True)
+        finally:
+            conn.close()
+        self.assertEqual(counted, len(listed))
+        self.assertTrue(counted, "the fixture store should not be empty")
+
+    def test_all_sessions_means_all_of_time_not_the_last_week(self):
+        """`cs all` showed 173 of 858 sessions. "All" referred to the kinds
+        of session it included, not the period, and it still carried the
+        seven-day default it shares with `cs recent` — so the oldest years
+        of the store were simply unreachable from the menu.
+        """
+        import sqlite3 as sq
+
+        from cs import db
+
+        conn = sq.connect(Path(os.environ["COPILOT_HOME"]) / "session-store.db")
+        conn.execute(
+            "INSERT INTO sessions VALUES ('sess-ancient','/tmp/old','acme/old','local',NULL,"
+            "'Ancient work', datetime('now','-400 days'), datetime('now','-400 days'))"
+        )
+        conn.execute(
+            "INSERT INTO turns VALUES (901,'sess-ancient',0,'long ago','done','w')"
+        )
+        conn.commit()
+        conn.close()
+
+        code, out = self._run("all")
+        self.assertEqual(code, 0)
+        self.assertIn("Ancient work", out)
+        self.assertIn("all time", out)
+
+        # An explicit window still windows, and still refuses nonsense.
+        _, windowed = self._run("all", "7")
+        self.assertNotIn("Ancient work", windowed)
+        self.assertIn("last 7 days", windowed)
+        self.assertEqual(self._run("all", "-3")[0], 1)
+
+        # `cs recent` keeps its seven-day default — only `all` changed.
+        _, recent = self._run("recent")
+        self.assertIn("last 7 days", recent)
+        self.assertNotIn("Ancient work", recent)
+
+        # Every row is carried to the renderer; the screen scrolls, the
+        # query does not paginate.
+        conn = db.connect()
+        self.assertEqual(
+            len(db.recent_sessions(conn, 0)),
+            conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
+        )
+        conn.close()
+
+    def test_repos(self):
+        code, out = self._run("repos")
+        self.assertEqual(code, 0)
+        self.assertIn("acme/portal", out)
+
+
+        code, out = self._run("repos")
+        self.assertEqual(code, 0)
+        self.assertIn("acme/portal", out)
+
+    def test_project_tag_shown(self):
+        # sess-alpha has repo acme/portal → tag '#portal' in the listing.
+        code, out = self._run("recent", "7")
+        self.assertEqual(code, 0)
+        self.assertIn("#portal", out)
+
+    def test_timeline(self):
+        code, out = self._run("timeline", "7")
+        self.assertEqual(code, 0)
+
+    def test_show_by_id(self):
+        code, out = self._run("show", "sess-alpha")
+        self.assertEqual(code, 0)
+        self.assertIn("Conversation", out)
+        self.assertIn("make a portal", out)
+
+    def test_credits_shown(self):
+        # sess-alpha has 1.5 + 2.5 = 4.00 AIU
+        _, listing = self._run("recent", "7")
+        self.assertIn("Credits", listing)
+        self.assertIn("4.00", listing)
+        _, show = self._run("show", "sess-alpha")
+        self.assertIn("AIU", show)
+        self.assertIn("claude-opus-4.8", show)
+        _, stats = self._run("stats")
+        self.assertIn("credits", stats)
+        self.assertIn("4.00 AIU", stats)
+
+    def test_recent_sorts_by_credits(self):
+        base = Path(self._tmp.name)
+        conn = sqlite3.connect(base / "session-store.db")
+        conn.execute(
+            "INSERT INTO sessions VALUES ('sess-beta','/tmp/b','acme/other','local','main',"
+            "'Lower spend', datetime('now'), datetime('now'))"
+        )
+        conn.execute(
+            "INSERT INTO turns VALUES (3,'sess-beta',0,'one turn','done','z')"
+        )
+        conn.execute(
+            "INSERT INTO assistant_usage_events "
+            "(session_id, turn_index, model, total_nano_aiu) "
+            "VALUES ('sess-beta',0,'gemini-3.6-flash',500000000)"
+        )
+        conn.commit()
+        conn.close()
+
+        _, out = self._run("recent", "7", "--sort", "credits")
+        self.assertIn("Credits↓", out)
+        self.assertLess(out.index("Build Three.js portal"), out.index("Lower spend"))
+        _, ascending = self._run("recent", "7", "--sort", "credits", "--asc")
+        self.assertLess(ascending.index("Lower spend"), ascending.index("Build Three.js portal"))
+
+    def test_row_numbers_stay_with_their_session(self):
+        """#N identifies a session, so sorting must not repoint it."""
+        import curses
+
+        from cs.cli import _index_file, _listing_tui
+
+
+        # Listed newest-first, so #1 is newest — but #3 holds the most credits.
+        rows = [
+            ("id-new", "2026-08-01T12:00", "Newest", "r/a", "/tmp", 1, 50_000_000_000),
+            ("id-mid", "2026-08-01T11:00", "Middle", "r/b", "/tmp", 2, 5_000_000_000),
+            ("id-old", "2026-08-01T10:00", "Oldest", "r/c", "/tmp", 3, 900_000_000_000),
+        ]
+        # Right alone sorts — no Enter needed, so Enter can act on the row.
+        keys = [curses.KEY_RIGHT, curses.KEY_RIGHT, ord("q")]
+        screen = Screen(keys)
+        _listing_tui(screen, rows, "Sessions")
+
+        final = screen.frames[-1]
+        # The summary column starts after the kit columns, which a 100-column
+        # window is wide enough to draw.
+        shown = [(final[(y, 0)].strip(), final[(y, 47)].strip()) for y in (5, 6, 7)]
+        # Highest credits now sits on the top row but keeps its number.
+        self.assertEqual(shown, [("3", "Oldest"), ("1", "Newest"), ("2", "Middle")])
+
+        saved = dict(
+            line.split("=", 1) for line in _index_file().read_text().splitlines()
+        )
+        self.assertEqual(saved, {"1": "id-new", "2": "id-mid", "3": "id-old"})
+
+    def test_a_session_without_a_repo_shows_a_dot_not_a_gap(self):
+        """The repo column is counted and empty, not failed to draw.
+
+        Skills and agents already mark nothing with a dot; a blank cell in
+        the column beside them reads as a rendering fault instead.
+        """
+        from cs.cli import _listing_tui
+
+        rows = [
+            ("id-repo", "2026-08-01T12:00", "Has one", "org/acme",
+             "/tmp/acme", 3, 5_000_000_000),
+            # Run from the home directory: too generic to name, so there is
+            # no tag to show for it.
+            ("id-bare", "2026-08-01T11:00", "Has none", "",
+             os.path.expanduser("~"), 2, 3_000_000_000),
+        ]
+        screen = Screen([ord("q")])
+        _listing_tui(screen, rows, "Sessions")
+
+        final = screen.frames[-1]
+        repo_x = next(x for (y, x), text in final.items()
+                      if y == 3 and text.startswith("Repo"))
+        self.assertEqual(final[(5, repo_x)].strip(), "acme")
+        self.assertEqual(final[(6, repo_x)].strip(), "·")
+
+    def test_enter_resumes_highlighted_row(self):
+        """Enter acts on the row, and sorting keeps the highlight on it."""
+        import curses
+
+        from cs.cli import _listing_tui
+
+
+        rows = [
+            ("id-new", "2026-08-01T12:00", "Newest", "r/a", "/tmp", 1, 50_000_000_000),
+            ("id-mid", "2026-08-01T11:00", "Middle", "r/b", "/tmp", 2, 5_000_000_000),
+            ("id-old", "2026-08-01T10:00", "Oldest", "r/c", "/tmp", 3, 900_000_000_000),
+        ]
+
+        # Enter on the second row resumes that session.
+        self.assertEqual(
+            _listing_tui(Screen([curses.KEY_DOWN, 10]), rows, "Sessions"),
+            ("resume", "id-mid"),
+        )
+
+        # Highlight 'Middle', then sort by credits — which moves it to the
+        # bottom. Enter must still resume 'Middle', not whatever took its place.
+        keys = [curses.KEY_DOWN, curses.KEY_RIGHT, curses.KEY_RIGHT, 10]
+        self.assertEqual(
+            _listing_tui(Screen(keys), rows, "Sessions"), ("resume", "id-mid")
+        )
+
+        # 's' reverses the order and likewise keeps the highlight.
+        keys = [curses.KEY_DOWN, ord("s"), 10]
+        self.assertEqual(
+            _listing_tui(Screen(keys), rows, "Sessions"), ("resume", "id-mid")
+        )
+
+    def test_the_filter_box_opens_empty_every_time(self):
+        """'/' starts a new search, not an edit of the last one.
+
+        The box used to open pre-filled with the filter already applied. The
+        reason anyone presses '/' a second time is that the first filter was
+        wrong, so the inherited text made the commonest case the expensive
+        one — several backspaces before a single new character could be
+        typed.
+        """
+        from cs.cli import _listing_tui
+
+        rows = [
+            ("id-new", "2026-08-01T12:00", "Newest", "r/a", "/tmp", 1, 50_000_000_000),
+            ("id-mid", "2026-08-01T11:00", "Middle", "r/b", "/tmp", 2, 5_000_000_000),
+        ]
+        # Filter for 'mid', apply it, then reach for the filter again.
+        keys = [ord("/"), ord("m"), ord("i"), ord("d"), 10,
+                ord("/"), 10, ord("q")]
+        screen = Screen(keys)
+        _listing_tui(screen, rows, "Sessions")
+
+        drawn = [frame[(23, 0)] for frame in screen.frames
+                 if frame.get((23, 0), "").startswith(" filter:")]
+        typed = [line.split("▏")[0].removeprefix(" filter:").strip()
+                 for line in drawn]
+        # First pass builds 'mid' a letter at a time; the second opens blank.
+        self.assertEqual(typed[:4], ["", "m", "mi", "mid"])
+        self.assertEqual(typed[4], "")
+
+    def test_mouse_selects_and_resumes_row(self):
+        """A click moves the highlight; a double-click resumes that session."""
+        import curses
+        from unittest import mock
+
+        from cs.cli import _listing_tui
+
+
+        rows = [
+            ("id-new", "2026-08-01T12:00", "Newest", "r/a", "/tmp", 1, 50_000_000_000),
+            ("id-mid", "2026-08-01T11:00", "Middle", "r/b", "/tmp", 2, 5_000_000_000),
+            ("id-old", "2026-08-01T10:00", "Oldest", "r/c", "/tmp", 3, 900_000_000_000),
+        ]
+        # Rows start at screen line 5, so line 7 is the third session.
+        click = (0, 10, 7, 0, curses.BUTTON1_CLICKED)
+        double = (0, 10, 7, 0, curses.BUTTON1_DOUBLE_CLICKED)
+
+        # Click selects the row, and Enter then resumes it.
+        with mock.patch.object(curses, "getmouse", return_value=click):
+            self.assertEqual(
+                _listing_tui(Screen([curses.KEY_MOUSE, 10]), rows, "Sessions"),
+                ("resume", "id-old"),
+            )
+
+        # Double-click resumes without needing Enter at all.
+        with mock.patch.object(curses, "getmouse", return_value=double):
+            self.assertEqual(
+                _listing_tui(Screen([curses.KEY_MOUSE]), rows, "Sessions"),
+                ("resume", "id-old"),
+            )
+
+        # A click below the last row leaves the highlight where it was.
+        empty = (0, 10, 15, 0, curses.BUTTON1_CLICKED)
+        with mock.patch.object(curses, "getmouse", return_value=empty):
+            self.assertEqual(
+                _listing_tui(Screen([curses.KEY_MOUSE, 10]), rows, "Sessions"),
+                ("resume", "id-new"),
+            )
+
+    def test_leaving_a_view_does_not_spill_mouse_reports_onto_the_shell(self):
+        """A wheel flick outran the redraws; the leftovers echoed at the prompt."""
+        from unittest import mock
+
+        import cs.cli as cli
+
+        order: list[str] = []
+        with mock.patch.object(cli, "_SGR_ENABLED", True), \
+                mock.patch.object(cli, "_MOUSE_USED", True), \
+                mock.patch.object(cli, "_write_terminal",
+                                  lambda seq: order.append(seq)), \
+                mock.patch.object(cli, "_drain_stdin", lambda: order.append("drain")):
+            cli._disable_mouse()
+            # Curses restores the terminal after this, so the queue has to be
+            # cleared again — that second pass is the one that was missing.
+            cli._disable_mouse()
+        self.assertEqual(order, ["\033[?1006l", "drain", "drain"])
+
+        # Never used the mouse, never eat what the user typed ahead.
+        order.clear()
+        with mock.patch.object(cli, "_SGR_ENABLED", False), \
+                mock.patch.object(cli, "_MOUSE_USED", False), \
+                mock.patch.object(cli, "_drain_stdin", lambda: order.append("drain")):
+            cli._disable_mouse()
+        self.assertEqual(order, [])
+
+    def test_wheel_scrolls_both_ways(self):
+        """Wheel-down only arrives over SGR — the X10 path cannot report it."""
+        from cs.cli import _listing_tui
+
+        rows = [
+            (f"id-{i}", f"2026-08-01T{10 + i:02d}:00", f"Row{i}", "r/a", "/tmp", 1, 10)
+            for i in range(12)
+        ]
+
+        def sgr(button, x, y, pressed=True):
+            body = f"[<{button};{x};{y}" + ("M" if pressed else "m")
+            return [27, *[ord(c) for c in body]]
+
+        def status_of(keys):
+            screen = Screen(keys)
+            _listing_tui(screen, rows, "Sessions")
+            return screen.frames[-1][(23, 0)]
+
+        # Wheel down moves three rows on, wheel up brings them back.
+        self.assertIn("4 of 12", status_of([*sgr(65, 20, 10), ord("q")]))
+        self.assertIn("7 of 12", status_of([*sgr(65, 20, 10), *sgr(65, 20, 10), ord("q")]))
+        self.assertIn(
+            "1 of 12",
+            status_of([*sgr(65, 20, 10), *sgr(64, 20, 10), ord("q")]),
+        )
+        # Scrolling stops at the ends rather than wrapping round.
+        self.assertIn("1 of 12", status_of([*sgr(64, 20, 10), ord("q")]))
+
+    def test_the_reader_wipes_in_once_and_then_holds_still(self):
+        """A report arrives the way the menu that opened it did.
+
+        Two things this has to get right, and both were wrong first time
+        round: the wipe must be *over* by the time a keypress is acted on —
+        otherwise the last thing on screen is a half-drawn page — and it must
+        never run again, because motion while you are reading is motion that
+        says nothing and never stops saying it.
+        """
+        from cs import ui
+        from cs.cli import _reader_tui
+
+        lines = [f"line {i} " + "x" * 60 for i in range(40)]
+
+        # -1 is what a timed getch reports when nothing was typed: the wipe's
+        # own frames. Three of them, then a key.
+        screen = Screen([-1, -1, -1, ord("q")])
+        _reader_tui(screen, lines, mouse=False)
+        # Part-way through: the top row is clipped, and the rows under it are
+        # clipped harder, because each trails the one above.
+        during = screen.frames[3]
+        self.assertLess(len(during.get((0, 0), "")), len(lines[0]))
+        self.assertLess(len(during.get((3, 0), "")), len(during.get((0, 0), "")))
+        # The frame the keypress lands on is the whole page.
+        settled = screen.frames[-1]
+        self.assertEqual(settled[(0, 0)][:6], "line 0")
+        self.assertGreater(len(settled[(3, 0)]), 60)
+        # It takes fewer frames than the wipe has, because a key ends it.
+        self.assertLess(len(screen.frames), ui.REVEAL_FRAMES + 3)
+
+    def test_the_reader_still_draws_where_a_timeout_is_not_available(self):
+        """No timed getch means no wipe — and a fully drawn page anyway."""
+        from cs.cli import _reader_tui
+
+        class NoTimeout(Screen):
+            def timeout(self, milliseconds):
+                raise AttributeError("no timeout here")
+
+        screen = NoTimeout([ord("q")])
+        _reader_tui(screen, ["hello " + "y" * 40], mouse=False)
+        self.assertTrue(screen.frames[-1][(0, 0)].startswith("hello"))
+
+    def test_the_reader_scrolls_on_the_wheel_instead_of_leaving(self):
+        """A wheel tick must never be read as the Esc that starts it.
+
+        Reports opened from the menu are read in place, and under SGR a wheel
+        tick arrives as `Esc [ < 65 ; x ; y M`. Testing for Esc before
+        decoding the report sent every scroll straight back to the menu.
+        """
+        from cs.cli import _reader_tui
+
+        lines = [f"line {i}" for i in range(80)]
+
+        def sgr(button, x, y):
+            return [27, *(ord(c) for c in f"[<{button};{x};{y}M")]
+
+        def top_line_after(keys):
+            screen = Screen([*keys, ord("q")])
+            _reader_tui(screen, lines, mouse=True)
+            return screen.frames[-1][(0, 0)]
+
+        # Three wheel-downs move nine lines on; wheel-up brings them back.
+        self.assertEqual(top_line_after([]), "line 0")
+        self.assertEqual(top_line_after(sgr(65, 5, 5)), "line 3")
+        self.assertEqual(top_line_after([*sgr(65, 5, 5)] * 3), "line 9")
+        self.assertEqual(
+            top_line_after([*sgr(65, 5, 5), *sgr(65, 5, 5), *sgr(64, 5, 5)]), "line 3"
+        )
+        # Scrolling up at the top stays put rather than leaving the reader.
+        self.assertEqual(top_line_after(sgr(64, 5, 5)), "line 0")
+
+    def test_the_reader_reaches_the_last_line_and_stops_there(self):
+        """Both ends are reachable, and neither one falls out of the view."""
+        from cs.cli import _reader_tui
+
+        lines = [f"line {i}" for i in range(80)]
+        screen = Screen([ord("G"), ord("q")])
+        _reader_tui(screen, lines, mouse=False)
+        frame = screen.frames[-1]
+        # 24 rows: 23 of text, then the status bar.
+        self.assertEqual(frame[(0, 0)], "line 57")
+        self.assertEqual(frame[(22, 0)], "line 79")
+        self.assertIn("end", frame[(23, 0)])
+
+    def test_scrolling_mid_filter_neither_cancels_it_nor_types_into_it(self):
+        """The filter prompt reads Esc too, and had the same blind spot."""
+        from cs.cli import _listing_tui
+
+        rows = [
+            (f"id-{i}", f"2026-08-01T{10 + i:02d}:00", f"Row{i}", "r/a", "/tmp", 1, 10)
+            for i in range(4)
+        ]
+
+        def sgr(button, x, y):
+            return [27, *(ord(c) for c in f"[<{button};{x};{y}M")]
+
+        keys = [ord("/"), ord("z"), *sgr(65, 5, 5), ord("x"), 10, ord("q")]
+        screen = Screen(keys)
+        _listing_tui(screen, rows, "Sessions")
+        # Only the prompt line matters: the wheel must leave it open, and the
+        # report's own bytes must not land in it.
+        typed = [
+            str(value)
+            for frame in screen.frames
+            for value in frame.values()
+            if str(value).startswith(" filter: ")
+        ]
+        self.assertTrue(typed, "the filter prompt never stayed open")
+        self.assertTrue(
+            any(line.startswith(" filter: zx") for line in typed),
+            f"filter never reached 'zx': {typed}",
+        )
+        self.assertFalse([line for line in typed if "65;5;5" in line])
+
+    def test_the_reader_re_sorts_a_report_without_leaving_it(self):
+        """←/→ walk the columns, s reverses, and the report is rebuilt."""
+        import curses
+
+        from cs.cli import _REPORT_COLUMNS, _reader_tui
+
+        asked: list[tuple[str, bool]] = []
+
+        def render(column, descending):
+            asked.append((column, descending))
+            return f"sorted by {column}\n" + "\n".join(f"row {i}" for i in range(40))
+
+        columns = list(_REPORT_COLUMNS["repos"])
+        sort = {
+            "report": "repos", "columns": columns,
+            "defaults": {n: d for n, (_, d) in _REPORT_COLUMNS["repos"].items()},
+            "column": "sessions", "descending": True, "render": render,
+        }
+        keys = [curses.KEY_RIGHT, curses.KEY_RIGHT, ord("s"), curses.KEY_LEFT, ord("q")]
+        _reader_tui(Screen(keys), render("sessions", True).split("\n"), False, sort)
+
+        # sessions → repo → turns, reversed, then back to repo.
+        self.assertEqual(
+            asked,
+            [("sessions", True), ("repo", False), ("turns", True),
+             ("turns", False), ("repo", False)],
+        )
+
+    def test_re_sorting_returns_to_the_top_of_the_report(self):
+        """The row you were on is gone once the table reorders."""
+        import curses
+
+        from cs.cli import _REPORT_COLUMNS, _reader_tui
+
+        lines = [f"row {i}" for i in range(60)]
+        sort = {
+            "report": "repos", "columns": list(_REPORT_COLUMNS["repos"]),
+            "defaults": {n: d for n, (_, d) in _REPORT_COLUMNS["repos"].items()},
+            "column": "sessions", "descending": True,
+            "render": lambda column, down: "\n".join(lines),
+        }
+        screen = Screen([ord("G"), curses.KEY_RIGHT, ord("q")])
+        _reader_tui(screen, list(lines), False, sort)
+        self.assertEqual(screen.frames[-1][(0, 0)], "row 0")
+
+    def test_a_report_with_no_sort_keeps_the_keys_it_had(self):
+        """Without a sort, ← and → must not be swallowed as sort keys."""
+        import curses
+
+        from cs.cli import _reader_tui
+
+        screen = Screen([curses.KEY_RIGHT, curses.KEY_DOWN, ord("q")])
+        _reader_tui(screen, [f"row {i}" for i in range(40)], False, None)
+        # KEY_RIGHT did nothing; KEY_DOWN still scrolled one line.
+        self.assertEqual(screen.frames[-1][(0, 0)], "row 1")
+
+    def test_esc_still_leaves_the_reader(self):
+        """Esc is back — decoding mouse reports first must not cost that."""
+        from cs.cli import _reader_tui
+
+        screen = Screen([27])
+        _reader_tui(screen, ["only line"], mouse=True)
+        self.assertTrue(screen.frames)  # it drew, then returned on Esc
+
+    def test_sgr_click_is_not_mistaken_for_escape(self):
+        """An SGR report opens with Esc; the press half must not quit."""
+
+        from cs.cli import _listing_tui
+
+        rows = [
+            ("id-one", "2026-08-01T10:00", "One", "r/a", "/tmp", 1, 10),
+            ("id-two", "2026-08-01T11:00", "Two", "r/b", "/tmp", 2, 20),
+            ("id-six", "2026-08-01T12:00", "Six", "r/c", "/tmp", 3, 30),
+        ]
+
+        def sgr(button, x, y, pressed=True):
+            body = f"[<{button};{x};{y}" + ("M" if pressed else "m")
+            return [27, *[ord(c) for c in body]]
+
+        def press_release(screen_row):
+            # Terminals report 1-based coordinates.
+            y = screen_row + 1
+            return [*sgr(0, 20, y), *sgr(0, 20, y, pressed=False)]
+
+        def act(keys):
+            return _listing_tui(Screen(keys), rows, "Sessions")
+
+        # A click on the third row selects it; Enter then resumes that row —
+        # proving the press half neither quit nor was treated as a keypress.
+        self.assertEqual(act([*press_release(7), 10]), ("resume", "id-one"))
+        # Two clicks in quick succession are a double-click, so no Enter needed.
+        self.assertEqual(act([*press_release(6), *press_release(6)]), ("resume", "id-two"))
+        # A real Esc still quits, and is not swallowed by the mouse probe.
+        self.assertIsNone(act([27]))
+
+    def test_show_returns_to_the_same_view(self):
+        """'o' leaves for the detail view, and coming back restores the view."""
+        import curses
+
+        from cs.cli import _listing_tui
+
+        rows = [
+            ("id-new", "2026-08-01T12:00", "Newest", "r/a", "/tmp", 1, 10),
+            ("id-mid", "2026-08-01T11:00", "Middle", "r/b", "/tmp", 2, 20),
+            ("id-old", "2026-08-01T10:00", "Oldest", "r/c", "/tmp", 3, 30),
+        ]
+
+        # Sort by turns, move down, filter, then show the highlighted session.
+        state: dict = {}
+        keys = [
+            curses.KEY_RIGHT,                       # sort by turns
+            curses.KEY_DOWN,                        # move off the first row
+            ord("/"), *[ord(c) for c in "old"], 10,  # filter down to 'Oldest'
+            ord("o"),
+        ]
+        self.assertEqual(
+            _listing_tui(Screen(keys), rows, "Sessions", state=state),
+            ("show", "id-old"),
+        )
+        self.assertEqual(state["sort_by"], "turns")
+        self.assertEqual(state["query"], "old")
+
+        # Re-entering with that state resumes the same row, under the same
+        # sort and filter — the trip through the detail view left no trace.
+        screen = Screen([10])
+        self.assertEqual(
+            _listing_tui(screen, rows, "Sessions", state=state),
+            ("resume", "id-old"),
+        )
+        self.assertIn("sorted by turns", screen.frames[0][(0, 0)])
+        self.assertIn("filter 'old'", screen.frames[0][(0, 0)])
+
+    def test_pause_lets_you_stop(self):
+        from unittest import mock
+
+        from cs.cli import _pause
+
+        with mock.patch("builtins.input", return_value=""):
+            self.assertTrue(_pause("x"))          # Enter → back to the list
+        with mock.patch("builtins.input", return_value="q"):
+            self.assertFalse(_pause("x"))         # q → done
+        with mock.patch("builtins.input", side_effect=EOFError):
+            self.assertFalse(_pause("x"))         # Ctrl-D → done, no traceback
+
+    def test_unknown_escape_sequence_does_not_quit(self):
+        """A stray ESC-[ sequence must be swallowed, not read as Esc."""
+
+        from cs.cli import _listing_tui
+
+        rows = [
+            ("id-one", "2026-08-01T10:00", "One", "r/a", "/tmp", 1, 10),
+            ("id-two", "2026-08-01T11:00", "Two", "r/b", "/tmp", 2, 20),
+        ]
+        # ESC [ C is a cursor-mode arrow ncurses did not translate. It must
+        # not reach the quit path — Enter afterwards still resumes.
+        keys = [27, ord("["), ord("C"), 10]
+        self.assertEqual(
+            _listing_tui(Screen(keys), rows, "Sessions"), ("resume", "id-two")
+        )
+        # A bare Esc still quits.
+        self.assertIsNone(_listing_tui(Screen([27]), rows, "Sessions"))
+
+    def test_mouse_header_click_sorts(self):
+        """Clicking a column header sorts by it, then reverses on a second click."""
+        import curses
+        from unittest import mock
+
+        from cs.cli import _listing_tui
+
+
+        rows = [
+            ("one", "2026-08-01T10:00", "One", "repo/one", "/tmp", 1, 10),
+            ("two", "2026-08-01T11:00", "Two", "repo/two", "/tmp", 2, 20),
+        ]
+        # x=17 is the 'Turns' column, on the header line (y=3).
+        header = (0, 17, 3, 0, curses.BUTTON1_CLICKED)
+        screen = Screen([curses.KEY_MOUSE, curses.KEY_MOUSE, ord("q")])
+        with mock.patch.object(curses, "getmouse", return_value=header):
+            _listing_tui(screen, rows, "Sessions")
+        titles = [frame[(0, 0)] for frame in screen.frames]
+        self.assertTrue(any("sorted by turns ↓" in title for title in titles))
+        self.assertTrue(any("sorted by turns ↑" in title for title in titles))
+
+    def test_search_tui_starts_on_relevance(self):
+        """A search opens best-match-first, shows the hit, and can sort away."""
+        import curses
+
+        from cs.cli import _listing_tui
+
+
+        rows = [
+            ("id-best", "2026-08-01T10:00", "Best", "r/a", "/tmp", 1, 10),
+            ("id-next", "2026-08-01T11:00", "Next", "r/b", "/tmp", 2, 20),
+        ]
+        hits = {"id-best": ("checkpoint_next_steps", "wire the charts to live data")}
+
+        screen = Screen([curses.KEY_RIGHT, ord("q")])
+        _listing_tui(screen, rows, "Search", "relevance", hits)
+        headings = [f[(0, 0)] for f in screen.frames]
+        self.assertIn("Search · best match first", headings[0])
+        # → leaves relevance for the first real column.
+        self.assertTrue(any("sorted by active" in h for h in headings))
+        # The hit is shown for the highlighted row, labelled by its source.
+        hit_line = screen.frames[0][(22, 0)]
+        self.assertIn("next steps", hit_line)
+        self.assertIn("wire the charts", hit_line)
+
+        # Enter still resumes the row the search ranked first.
+        self.assertEqual(
+            _listing_tui(Screen([10]), rows, "Search", "relevance", hits),
+            ("resume", "id-best"),
+        )
+
+    def test_arrow_key_sorts_immediately(self):
+        import curses
+
+        from cs.cli import _listing_tui
+
+
+        screen = Screen([curses.KEY_RIGHT, ord("q")])
+        rows = [
+            ("one", "2026-08-01T10:00", "One", "repo/one", "/tmp", 1, 10),
+            ("two", "2026-08-01T11:00", "Two", "repo/two", "/tmp", 2, 20),
+        ]
+        _listing_tui(screen, rows, "Sessions")
+        titles = [frame[(0, 0)] for frame in screen.frames]
+        self.assertTrue(any("Sessions · sorted by turns ↓" in title for title in titles))
+
+    def test_filter_and_resume_action(self):
+        from cs.cli import _listing_tui
+
+
+        rows = [
+            ("id-alpha", "2026-08-01T10:00", "Alpha work", "repo/alpha", "/tmp", 1, 10),
+            ("id-beta", "2026-08-01T11:00", "Beta work", "repo/beta", "/tmp", 2, 20),
+        ]
+        # '/beta<Enter>' filters to one row; 'r' resumes whatever the cursor holds.
+        keys = [ord("/"), *[ord(c) for c in "beta"], 10, ord("r")]
+        self.assertEqual(_listing_tui(Screen(keys), rows, "Sessions"), ("resume", "id-beta"))
+
+        # Esc clears the filter instead of quitting, so both rows are reachable
+        # again — moving down to the second row proves the full list is back.
+        import curses
+
+        screen = Screen(
+            [ord("/"), *[ord(c) for c in "beta"], 10, 27, curses.KEY_DOWN, ord("o")]
+        )
+        self.assertEqual(_listing_tui(screen, rows, "Sessions"), ("show", "id-alpha"))
+
+        # A filter matching nothing must not crash or return a phantom session.
+        no_match = Screen([ord("/"), *[ord(c) for c in "zzz"], 10, ord("r"), ord("q")])
+        self.assertIsNone(_listing_tui(no_match, rows, "Sessions"))
+
+    def test_sort_rejects_unknown_column(self):
+        code, _ = self._run("recent", "--sort", "nonsense")
+        self.assertEqual(code, 1)
+
+    def test_rejects_non_positive_days(self):
+        code, _ = self._run("recent", "-7")
+        self.assertEqual(code, 1)
+        timeline_code, _ = self._run("timeline", "0")
+        self.assertEqual(timeline_code, 1)
+
+    def test_show_missing(self):
+        code, out = self._run("show", "does-not-exist")
+        self.assertEqual(code, 1)
+
+    def test_bare_number_shortcut(self):
+        # A listing populates the #N index; 'show 1' must resolve like 'show #1'.
+        self._run("recent", "7")
+        code, out = self._run("show", "1")
+        self.assertEqual(code, 0)
+        self.assertIn("Build Three.js portal", out)
+        # #-prefixed form still works
+        code2, out2 = self._run("show", "#1")
+        self.assertEqual(code2, 0)
+        self.assertIn("Build Three.js portal", out2)
+
+    def test_resume_chdirs_to_session_cwd(self):
+        from cs import cli
+        base = Path(self._tmp.name)
+        conn = sqlite3.connect(base / "session-store.db")
+        conn.execute("UPDATE sessions SET cwd = ? WHERE id = 'sess-alpha'", (str(base),))
+        conn.commit()
+        conn.close()
+
+        seen = {}
+        origin = os.getcwd()
+        real_chdir, real_exec, real_which = os.chdir, os.execv, cli.shutil.which
+        os.chdir = lambda p: seen.setdefault("cwd", p)
+        os.execv = lambda f, a: seen.setdefault("exec", (f, a)) or (_ for _ in ()).throw(
+            SystemExit(0))
+        # $PATH must be walked from where we started, not from the session's
+        # own folder — so record whether the lookup happened before the chdir.
+        def fake_which(name):
+            seen["which_before_cd"] = "cwd" not in seen
+            return "/b/c"
+
+        cli.shutil.which = fake_which
+        try:
+            self._run("resume", "sess-alpha")
+        finally:
+            os.chdir, os.execv, cli.shutil.which = real_chdir, real_exec, real_which
+        self.assertEqual(seen["cwd"], str(base))
+        self.assertEqual(seen["exec"], ("/b/c", ["copilot", "--resume", "sess-alpha"]))
+        self.assertTrue(seen["which_before_cd"])
+        self.assertEqual(os.getcwd(), origin)
+
+    def test_resume_missing_session(self):
+        code, _ = self._run("resume", "nope")
+        self.assertEqual(code, 1)
+
+    def test_unknown_command(self):
+        code, out = self._run("bogus")
+        self.assertEqual(code, 1)

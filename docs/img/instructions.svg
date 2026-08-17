@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="765" height="545" viewBox="0 0 765 545" role="img" aria-label="cs instructions">
+  <rect width="765" height="545" rx="10" fill="#14161c"/>
+  <rect width="765" height="34.0" rx="10" fill="#1d2029"/>
+  <rect y="24.0" width="765" height="10" fill="#1d2029"/>
+  <circle cx="22" cy="17" r="6" fill="#ff5f56"/><circle cx="40" cy="17" r="6" fill="#ffbd2e"/><circle cx="58" cy="17" r="6" fill="#27c93f"/>
+  <text x="382" y="22" fill="#8b93a7" font-size="12" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">cs instructions</text>
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="13.5">
+    <text x="34.2" y="66.0" fill="#00afff" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──</text>
+    <text x="58.5" y="66.0" fill="#e6e6e6" font-weight="600" textLength="194.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Instructions · 4 on disk</text>
+    <text x="261.0" y="66.0" fill="#4e4e4e" textLength="486.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">────────────────────────────────────────────────────────────</text>
+    <text x="34.2" y="104.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">project  </text>
+    <text x="107.1" y="104.0" fill="#e6e6e6" textLength="153.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">2 files · 133 chars</text>
+    <text x="107.1" y="123.0" fill="#8a8a8a" textLength="259.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">/private/tmp/cs-demo/acme-portal</text>
+    <text x="34.2" y="142.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">personal </text>
+    <text x="107.1" y="142.0" fill="#e6e6e6" textLength="170.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">2 files · 5,522 chars</text>
+    <text x="107.1" y="161.0" fill="#8a8a8a" textLength="162.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">/tmp/cs-demo/copilot</text>
+    <text x="34.2" y="180.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">limit    </text>
+    <text x="107.1" y="180.0" fill="#e6e6e6" textLength="364.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">4,000 chars per file before Copilot truncates</text>
+    <text x="34.2" y="218.0" fill="#00afff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="218.0" fill="#e6e6e6" font-weight="600" textLength="283.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Loaded before your first prompt · 4</text>
+    <text x="333.9" y="218.0" fill="#4e4e4e" textLength="396.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">─────────────────────────────────────────────────</text>
+    <text x="50.4" y="237.0" fill="#8a8a8a" textLength="607.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">scope    file                                        chars  lines  headings</text>
+    <text x="50.4" y="256.0" fill="#8a8a8a" textLength="607.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="275.0" fill="#8a8a8a" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">personal</text>
+    <text x="123.3" y="275.0" fill="#ff5f87" textLength="324.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">AGENTS.md                               </text>
+    <text x="455.4" y="275.0" fill="#ff5f87" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">   5,478</text>
+    <text x="528.3" y="275.0" fill="#8a8a8a" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">   133</text>
+    <text x="585.0" y="275.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">        1</text>
+    <text x="50.4" y="294.0" fill="#8a8a8a" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">personal</text>
+    <text x="115.2" y="294.0" fill="#e6e6e6" textLength="413.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> copilot-instructions.md                        44 </text>
+    <text x="528.3" y="294.0" fill="#8a8a8a" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     5</text>
+    <text x="585.0" y="294.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">        2</text>
+    <text x="50.4" y="313.0" fill="#8a8a8a" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">project </text>
+    <text x="115.2" y="313.0" fill="#e6e6e6" textLength="413.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> .github/copilot-instructions.md                67 </text>
+    <text x="528.3" y="313.0" fill="#8a8a8a" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     8</text>
+    <text x="585.0" y="313.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">        3</text>
+    <text x="50.4" y="332.0" fill="#8a8a8a" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">project </text>
+    <text x="115.2" y="332.0" fill="#e6e6e6" textLength="413.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> AGENTS.md                                      66 </text>
+    <text x="528.3" y="332.0" fill="#8a8a8a" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     8</text>
+    <text x="585.0" y="332.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">        3</text>
+    <text x="50.4" y="370.0" fill="#ff5f87" textLength="162.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">● personal AGENTS.md</text>
+    <text x="66.6" y="389.0" fill="#ff5f87" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">→</text>
+    <text x="74.7" y="389.0" fill="#e6e6e6" textLength="575.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> 5,478 characters — the last 1,478 are past the limit and are not read.</text>
+    <text x="18.0" y="408.0" fill="#e6e6e6" textLength="648.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">        Move the scoped rules into .github/instructions/*.instructions.md, which</text>
+    <text x="18.0" y="427.0" fill="#e6e6e6" textLength="275.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">        load only when they match.</text>
+    <text x="34.2" y="465.0" fill="#8a8a8a" textLength="639.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Read from disk, not from the store: this is what your next session starts with,</text>
+    <text x="34.2" y="484.0" fill="#8a8a8a" textLength="502.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">whatever the last one did. Nothing here is written or changed.</text>
+    <text x="34.2" y="522.0" fill="#8a8a8a" textLength="259.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">--why  explains how to read this</text>
+  </g>
+</svg>

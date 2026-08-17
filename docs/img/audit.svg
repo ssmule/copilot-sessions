@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="765" height="526" viewBox="0 0 765 526" role="img" aria-label="cs audit">
+  <rect width="765" height="526" rx="10" fill="#14161c"/>
+  <rect width="765" height="34.0" rx="10" fill="#1d2029"/>
+  <rect y="24.0" width="765" height="10" fill="#1d2029"/>
+  <circle cx="22" cy="17" r="6" fill="#ff5f56"/><circle cx="40" cy="17" r="6" fill="#ffbd2e"/><circle cx="58" cy="17" r="6" fill="#27c93f"/>
+  <text x="382" y="22" fill="#8b93a7" font-size="12" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">cs audit</text>
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="13.5">
+    <text x="34.2" y="66.0" fill="#00afff" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──</text>
+    <text x="58.5" y="66.0" fill="#e6e6e6" font-weight="600" textLength="307.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Security posture · 43 sessions scanned</text>
+    <text x="374.4" y="66.0" fill="#4e4e4e" textLength="372.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────</text>
+    <text x="34.2" y="104.0" fill="#ff5f87" font-weight="600" textLength="137.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">● ACTION REQUIRED</text>
+    <text x="50.4" y="123.0" fill="#e6e6e6" font-weight="600" textLength="413.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1 session needs your action · 1 value pasted by you</text>
+    <text x="50.4" y="142.0" fill="#8a8a8a" textLength="680.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1 finding across 1 session. Rotate confirmed live credentials first; use the inspect</text>
+    <text x="50.4" y="161.0" fill="#8a8a8a" textLength="348.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">command under a row to open its exact turn.</text>
+    <text x="34.2" y="199.0" fill="#ff5f87" textLength="105.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  1  CRITICAL</text>
+    <text x="155.7" y="199.0" fill="#8a8a8a" textLength="162.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">confirmed key format</text>
+    <text x="34.2" y="218.0" fill="#ffaf00" textLength="105.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  0  HIGH    </text>
+    <text x="155.7" y="218.0" fill="#8a8a8a" textLength="145.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">token or URL login</text>
+    <text x="34.2" y="237.0" fill="#8a8a8a" textLength="105.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  0  REVIEW  </text>
+    <text x="155.7" y="237.0" fill="#8a8a8a" textLength="129.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">named assignment</text>
+    <text x="34.2" y="275.0" fill="#ff5f87" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="275.0" fill="#e6e6e6" font-weight="600" textLength="291.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Immediate action · pasted by you · 1</text>
+    <text x="50.4" y="294.0" fill="#8a8a8a" textLength="623.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">These values are stored in session transcripts. Rotate live credentials, then</text>
+    <text x="50.4" y="313.0" fill="#8a8a8a" textLength="291.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">remove or expire every copied value.</text>
+    <text x="50.4" y="351.0" fill="#00afff" font-weight="600" textLength="32.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">risk</text>
+    <text x="82.8" y="351.0" fill="#8a8a8a" textLength="461.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     session   found  turn finding                summary</text>
+    <text x="50.4" y="370.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="389.0" fill="#ff5f87" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">critical</text>
+    <text x="123.3" y="389.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">a1b2c3d4 </text>
+    <text x="204.3" y="389.0" fill="#ff5f87" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="244.8" y="389.0" fill="#e6e6e6" textLength="56.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     3 </text>
+    <text x="301.5" y="389.0" fill="#d7af87" textLength="178.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">AKIA…                 </text>
+    <text x="479.7" y="389.0" fill="#e6e6e6" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Provision the staging stack</text>
+    <text x="66.6" y="408.0" fill="#8a8a8a" textLength="81.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">evidence  </text>
+    <text x="147.6" y="408.0" fill="#d7af87" textLength="315.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">here is the key: [redacted:aws-key-id] </text>
+    <text x="479.7" y="408.0" fill="#8a8a8a" textLength="267.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">inspect cs read a1b2c3d4 --turn 3</text>
+    <text x="34.2" y="446.0" fill="#8a8a8a" textLength="680.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Safe display: names, public prefixes and masked evidence only. Credential values are</text>
+    <text x="34.2" y="465.0" fill="#8a8a8a" textLength="218.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">never printed by this view.</text>
+    <text x="34.2" y="484.0" fill="#8a8a8a" textLength="591.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Sorted by risk ↓  ·  --sort risk|found|active|turn|summary [--asc|--desc]</text>
+    <text x="34.2" y="503.0" fill="#8a8a8a" textLength="251.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">←/→ and s re-sort in the reader</text>
+  </g>
+</svg>

@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ssmule/copilot-sessions/security/advisories/new
+    about: >-
+      Credential masking failures, escape sequences reaching the terminal, or
+      anything that writes to the store. Reported privately, never as an issue.
+  - name: Question or idea
+    url: https://github.com/ssmule/copilot-sessions/discussions
+    about: >-
+      Not sure it is a bug yet, or want to talk a feature through before
+      writing it up? Start here.
+  - name: Contributing guide
+    url: https://github.com/ssmule/copilot-sessions/blob/main/CONTRIBUTING.md
+    about: >-
+      How the code is laid out, what needs a test, and how to run the same two
+      commands CI does.

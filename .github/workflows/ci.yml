@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only by default: nothing here needs to write to the repository.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      # Actions are pinned to a commit SHA rather than a moving tag, so a
+      # compromised or retargeted tag cannot silently change what runs in CI.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install ruff
+        run: pipx install 'ruff==0.15.22'
+      - name: Lint
+        run: ruff check cs tests
+      # always(), so a formatting nit cannot hide a real test failure. Lint
+      # runs first and once went red for ten commits; because the test step
+      # was skipped each time, nobody could see the suite was in fact fine.
+      # Both steps still gate the job — this only stops one masking the other.
+      - name: Test
+        if: always()
+        run: python -m unittest discover -s tests -v
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      # The upstream binary rather than gitleaks-action: same scan, no
+      # third-party action in the supply chain and no licence requirement.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          # A release asset is mutable; the checksum is what actually pins it.
+          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+      - name: Scan history for committed credentials
+        run: /tmp/gitleaks detect --redact --no-banner --exit-code 1
