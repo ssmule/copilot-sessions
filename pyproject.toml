@@ -9,7 +9,7 @@ description = "A terminal application for your GitHub Copilot CLI sessions — l
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-authors = [{ name = "ssmule" }]
+authors = [{ name = "sommaharajan" }]
 keywords = ["github-copilot", "cli", "sessions", "terminal", "tui"]
 classifiers = [
     "Environment :: Console",
