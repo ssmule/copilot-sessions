@@ -5,6 +5,7 @@
 **A terminal app for everything your GitHub Copilot CLI already remembers.**
 Browse, search, read, audit and resume any past session — without leaving the shell.
 
+[![ci](https://github.com/ssmule/copilot-sessions/actions/workflows/ci.yml/badge.svg)](https://github.com/ssmule/copilot-sessions/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-7c6cf2.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-64c8e6.svg)](https://www.python.org/)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-none-3ba55d.svg)](#-install)
