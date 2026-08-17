@@ -48,3 +48,8 @@ CLAUDE.md
 # that mistake expensive: a pushed blob stays fetchable at its old SHA even
 # after a later commit removes the file.
 docs/deck/poster.local.*
+
+# local secrets - never commit
+.env
+.env.*
+!.env.example
