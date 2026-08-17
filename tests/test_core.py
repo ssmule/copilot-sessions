@@ -1921,3 +1921,38 @@ class CSTest(StoreTest):
     def test_unknown_command(self):
         code, out = self._run("bogus")
         self.assertEqual(code, 1)
+
+
+class InterpreterFloorTest(StoreTest):
+    """The Python floor is declared in three places and enforced in one.
+
+    `pip` honours requires-python, but `install.sh` and `bin/cs` never go
+    through pip, and every module carries `from __future__ import annotations`
+    so an old interpreter sails past import and only fails later, deep inside a
+    view. The guard in `cs/__init__.py` is the one thing standing in the way,
+    and CI can never execute it -- the interpreter running these tests is
+    always new enough -- so it is exercised here against a stubbed `sys`.
+    """
+
+    def _run_guard(self, version: tuple[int, ...]):
+        source = Path("cs/__init__.py").read_text(encoding="utf-8")
+        _, _, guard = source.partition('__version__ = "1.0.0"')
+        stub = type(
+            "StubSys",
+            (),
+            {"version_info": version, "executable": "/usr/bin/python3"},
+        )()
+        namespace: dict = {"sys": stub}
+        exec(compile(guard, "cs/__init__.py", "exec"), namespace)
+
+    def test_an_old_interpreter_is_turned_away_with_a_way_out(self):
+        with self.assertRaises(SystemExit) as caught:
+            self._run_guard((3, 9, 18))
+        message = str(caught.exception)
+        self.assertIn("3.9.18", message)
+        self.assertIn("Python 3.10 or newer", message)
+        self.assertIn("brew install ssmule/tap/copilot-sessions", message)
+
+    def test_a_supported_interpreter_passes_through(self):
+        self._run_guard((3, 10, 0))
+        self._run_guard((3, 13, 2))
