@@ -5,6 +5,25 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Installing on Python 3.9 no longer gets as far as running. `pip` honours
+  `requires-python`, but `install.sh` and `bin/cs` bypass pip, and every module
+  imports `annotations` from `__future__` — so an old interpreter used to start
+  cleanly and fail later inside a view. `cs/__init__.py`, which every entry
+  point imports, now refuses up front and names Homebrew as the way out.
+- `install.sh` checks the Python version before creating the symlink rather
+  than leaving a link that cannot work.
+- `install.sh` warns when another `cs` earlier on `PATH` will keep answering,
+  which previously made a successful install look like it had done nothing.
+
+### Changed
+
+- Package metadata gained the supported Python versions, operating systems and
+  the issue, source and changelog links.
+
 ## [1.0.0] — 2026-08-17
 
 First public release. `cs` reads the local GitHub Copilot CLI session store,
