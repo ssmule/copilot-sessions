@@ -180,17 +180,66 @@ turn and `cs export` for Markdown or JSON.
 
 ## ⚡ Install
 
-Requires **Python 3.10+**. Standard library only — no dependencies.
+### Homebrew (recommended)
+
+Needs [Homebrew](https://brew.sh) itself. If you don't have it:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Then install `cs` — **use the full `owner/tap/formula` name**, which taps and
+installs in one step:
 
 ```bash
 brew install ssmule/tap/copilot-sessions
 ```
 
-Homebrew builds it into its own virtualenv, so it never touches your system
-Python. Upgrade with `brew upgrade copilot-sessions`.
+Check it worked:
+
+```bash
+cs --version        # cs 1.0.0
+cs recent           # your sessions from the last 7 days
+```
+
+Homebrew builds `cs` into its own virtualenv with its own Python, so it never
+touches your system Python and needs nothing else installed.
+
+**Keeping it current**
+
+```bash
+brew update && brew upgrade copilot-sessions
+```
+
+**Removing it**
+
+```bash
+brew uninstall copilot-sessions
+brew untap ssmule/tap          # optional: forget the tap too
+```
+
+> [!IMPORTANT]
+> **Tap first and the install will be refused.** Homebrew 6 will not load a
+> formula from a third-party tap you have not trusted, so the familiar
+> two-step fails:
+>
+> ```console
+> $ brew tap ssmule/tap && brew install copilot-sessions
+> Error: Refusing to load formula ssmule/tap/copilot-sessions from untrusted tap ssmule/tap.
+> ```
+>
+> The one-liner above avoids this — naming the tap explicitly is itself the
+> trust signal. If you would rather tap first, trust it once:
+>
+> ```bash
+> brew trust ssmule/tap
+> brew install copilot-sessions
+> ```
 
 <details>
-<summary>Other ways to run it</summary>
+<summary>Other ways to run it — no Homebrew needed</summary>
+
+Requires **Python 3.10+**. Standard library only, no dependencies.
 
 ```bash
 git clone https://github.com/ssmule/copilot-sessions.git
