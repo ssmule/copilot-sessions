@@ -1,0 +1,37 @@
+# EditorConfig — editor hints only. No build, test or runtime effect.
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.{java,groovy,gradle,kt,kts,scala}]
+indent_size = 4
+
+[*.py]
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+# Windows scripts must keep CRLF or cmd.exe mis-parses them.
+[*.{bat,cmd}]
+end_of_line = crlf
+
+# Two trailing spaces are a hard line break in Markdown — don't strip them.
+[*.md]
+trim_trailing_whitespace = false
+
+# Vendored or generated trees are not ours to reformat.
+[{**/node_modules/**,**/vendor/**,**/target/**,**/build/**}]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
