@@ -1,8 +1,8 @@
 # Guide
 
 Every view, what it shows, and why it shows it that way. For a two-minute
-version see [README.md](README.md); for how the code is put together see
-[ARCHITECTURE.md](ARCHITECTURE.md).
+version see [README.md](../README.md); for how the code is put together see
+[ARCHITECTURE.md](../ARCHITECTURE.md).
 
 All examples use synthetic data.
 
