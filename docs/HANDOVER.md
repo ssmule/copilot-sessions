@@ -118,6 +118,24 @@ git --git-dir=/tmp/check.git cat-file --batch-all-objects --batch \
 beads database. Its issue records still carry the old address, and the next
 `bd` push would put it straight back on the remote.
 
+**The Homebrew tap had the same problem, and was rebuilt the same way.**
+`ssmule/homebrew-tap` (public) serves `brew install ssmule/tap/copilot-sessions`.
+Its old history tracked a beads database carrying the work address in twelve
+objects, so it was backed up, rebuilt as a single signed commit and the
+repository deleted and recreated — a force-push alone would not have done it,
+because an object stays fetchable at its old SHA until the repository itself is
+gone. Two consequences worth knowing:
+
+- **The formula is not maintained by hand.** `.github/workflows/bump.yml` in the
+  tap checks daily for a newer release, rewrites the `url` and `sha256`, and
+  commits. It computes the checksum from the tarball it has just downloaded, so
+  it cannot publish a formula whose checksum disagrees with its url. Publishing
+  a GitHub Release is therefore the whole release process; if you tag without
+  releasing, `releases/latest` does not move and the formula stays put.
+- **Formulae for private repositories were dropped**, because a public tap that
+  serves one hands every stranger a 404. The old tap is recoverable from the
+  backup bundle under `~/Work/backups/` if one is ever needed again.
+
 ## 2 · What shipped, and the decision behind each
 
 None of this is in the log any more — that is the point of keeping it here.

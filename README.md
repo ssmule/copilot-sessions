@@ -182,18 +182,26 @@ turn and `cs export` for Markdown or JSON.
 Requires **Python 3.10+**. Standard library only — no dependencies.
 
 ```bash
-git clone https://github.com/ssmule/copilot-sessions.git
-cd copilot-sessions
-./install.sh                 # symlinks `cs` into ~/.local/bin
+brew install ssmule/tap/copilot-sessions
 ```
+
+Homebrew builds it into its own virtualenv, so it never touches your system
+Python. Upgrade with `brew upgrade copilot-sessions`.
 
 <details>
 <summary>Other ways to run it</summary>
 
 ```bash
+git clone https://github.com/ssmule/copilot-sessions.git
+cd copilot-sessions
+./install.sh                 # symlinks `cs` into ~/.local/bin
+
 pip install .                # installs the `cs` command
 python -m cs recent          # run straight from a checkout
 ```
+
+If `cs` runs but reports a version you did not install, something earlier in
+your `PATH` is shadowing it — `which -a cs` will show you what.
 </details>
 
 ---
