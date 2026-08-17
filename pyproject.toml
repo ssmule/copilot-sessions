@@ -12,9 +12,20 @@ license = { file = "LICENSE" }
 authors = [{ name = "sommaharajan" }]
 keywords = ["github-copilot", "cli", "sessions", "terminal", "tui"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
-    "Programming Language :: Python :: 3",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
 ]
 dependencies = []  # zero runtime dependencies — stdlib only
 
@@ -23,6 +34,10 @@ cs = "cs.cli:run"
 
 [project.urls]
 Homepage = "https://github.com/ssmule/copilot-sessions"
+Documentation = "https://github.com/ssmule/copilot-sessions#readme"
+Source = "https://github.com/ssmule/copilot-sessions"
+Issues = "https://github.com/ssmule/copilot-sessions/issues"
+Changelog = "https://github.com/ssmule/copilot-sessions/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 packages = ["cs"]
