@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A recreated repository has no CI history, and a ruleset that requires these
+  # checks will hold the first pull request forever waiting for one. This lets
+  # you prove the workflow runs without inventing a commit to trigger it.
+  workflow_dispatch:
 
 # Read-only by default: nothing here needs to write to the repository.
 permissions:

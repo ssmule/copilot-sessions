@@ -118,7 +118,46 @@ git --git-dir=/tmp/check.git cat-file --batch-all-objects --batch \
 beads database. Its issue records still carry the old address, and the next
 `bd` push would put it straight back on the remote.
 
-**The Homebrew tap had the same problem, and was rebuilt the same way.**
+**It happened a second time, and the reason is worth more than the fix.** Days
+after that clearance, three commits reached the two public repositories
+authored with the employer address. The repo-local pin was still correct and
+still working; it simply was not consulted. Two routes went around it:
+
+- **A fresh clone inherits the global identity.** The pin lives in
+  `.git/config` of one directory. Anything that clones the repository
+  elsewhere — a tool, an agent, a second checkout — starts with the global
+  config, which still carried the work identity. The pin protects one
+  directory, not an account. The fix was to invert the default: global is now
+  the personal identity, and the work identity is pinned locally across the
+  work repositories instead. A leak into a work repo is harmless; the reverse
+  is not.
+- **A squash-merge is authored by GitHub, from your profile.** Merging a pull
+  request through the web UI ignores git config entirely and uses the account's
+  public profile name and email. No local setting can prevent that. Set the
+  email to private on the account, and tick *Block command line pushes that
+  expose my email* — that switch is the only one of these controls that fails
+  the push rather than discovering it afterwards.
+
+Recreating a repository is cheap; the debris around it is not. Budget for all
+of it, because each piece fails silently:
+
+- **Every checksum downstream is now wrong.** A rewrite changes every tree, so
+  the release tarball changes, so the Homebrew formula's `sha256` describes a
+  file that no longer exists and *every install fails*. Recompute it from the
+  new tag and push the formula before anything else.
+- **A recreated repository has never run CI.** Restore a ruleset that requires
+  status checks and the first pull request waits forever for a check that has
+  no history. Land one commit on `main` first and watch it go green.
+- **Push protection blocks the whole push, not the offending commit**, so a
+  fix-forward commit is useless — history has to be rewritten again. It also
+  reports one secret per attempt, so expect several rounds. The redaction test
+  fixtures are fake credentials by design; splitting each literal just after
+  its prefix (`"sk_live_" "51H8…"`) defeats the scanner and, because adjacent
+  string literals concatenate, changes nothing about the test.
+- **Existing clones keep the orphaned history.** Point them at the new remote
+  and hard-reset, or the next push restores exactly what was deleted.
+
+
 `ssmule/homebrew-tap` (public) serves `brew install ssmule/tap/copilot-sessions`.
 Its old history tracked a beads database carrying the work address in twelve
 objects, so it was backed up, rebuilt as a single signed commit and the
