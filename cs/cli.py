@@ -504,9 +504,36 @@ _RISK = {
 }
 _RISK_LABEL = {"critical": "critical", "high": "high", "medium": "review"}
 
+# A credential *mentioned* and one *hardcoded* are different problems, and the
+# severity scale cannot say which is which — it grades how certain the scanner
+# is that a value is a credential, not what was done with it. So `hardcoded`
+# replaces the label on a row that has both halves of the evidence (see
+# signals._hardcoded) and takes the severity's colour up with it: a
+# password-shaped assignment is a `review` finding until it is in a file the
+# session wrote, at which point it is the thing you came to this page for.
+_HARDCODED = (ui.ROSE, "hardcoded", "written into a file the session wrote")
+
+# What the destructive scan looks for, in the order you would deal with it.
+# The label is the section heading; the meaning is what the tier block says.
+_DESTRUCTIVE_KINDS = {
+    "history": (ui.ROSE, "Rewritten history"),
+    "data": (ui.ROSE, "Dropped data"),
+    "infra": (ui.ROSE, "Destroyed infrastructure"),
+    "delete": (ui.AMBER, "Files removed"),
+    "remote-exec": (ui.AMBER, "Code run from the network"),
+    "privilege": (ui.MUTED, "Raised privilege"),
+}
+_BASIS = {
+    "ran": (ui.ROSE, "ran",
+            "the session reports having done it"),
+    "proposed": (ui.AMBER, "proposed",
+                 "offered in a code block; the store cannot say if it ran"),
+}
+
 
 def _fit_columns(budget: int, fixed: int, optional: list[tuple[str, int]],
-                 least: int = 20, flex: str = "summary") -> dict[str, int]:
+                 least: int = 20, flex: str = "summary",
+                 gaps: int = 0) -> dict[str, int]:
     """Room for each optional column, and whatever is left for `flex`.
 
     `optional` is (name, span) in the order columns may be dropped — the one
@@ -530,7 +557,11 @@ def _fit_columns(budget: int, fixed: int, optional: list[tuple[str, int]],
 
     while droppable and budget - used() < least:
         spans[droppable.pop(0)] = 0
-    spans[flex] = max(8, budget - used())
+    # `gaps` is what _row will spend on the second space between a number and
+    # the text beside it. It comes out of the flexible column at the end
+    # rather than off the budget at the start, so the widest thing on the row
+    # loses a character instead of a whole column disappearing at the margin.
+    spans[flex] = max(8, budget - used() - gaps)
     return spans
 
 
@@ -550,6 +581,45 @@ def _cell(text: str, span: int, align: str = "<", colour: str = "") -> str:
     else:
         padded = fitted + gap
     return f"{colour}{padded}{ui.RST}" if colour else padded
+
+
+def _row(shown: list[tuple[str, str, str]], spans: dict[str, int],
+         values: dict[str, tuple[str, str]] | None = None) -> str:
+    """One table line, with its columns spaced apart.
+
+    The headings when `values` is None, and a row of the table when it is a
+    {column: (text, colour)} mapping — one function, so the two can never be
+    spaced differently and leave the rule measured off the wrong one.
+
+    Two spaces where a right-aligned number meets left-aligned text, one
+    everywhere else. A number ends flush against its own edge, so a single
+    space put `58.0` and the word beside it in contact and the pair read as
+    one value; `steps  per turn summary` read as a sentence rather than as
+    three headings. Every other join is already separated by the padding
+    inside the cells themselves and does not need the second space.
+
+    :func:`_extra_gaps` counts what the spacing costs and `_fit_columns`
+    takes it out of the flexible column, so a table that spaces itself never
+    runs a row off a narrow window.
+    """
+    out = []
+    for index, (key, head, align) in enumerate(shown):
+        if index:
+            out.append("  " if shown[index - 1][2] == ">" and align == "<" else " ")
+        text, colour = (head, "") if values is None else values[key]
+        out.append(_cell(text, spans[key], align, colour))
+    return "".join(out)
+
+
+def _extra_gaps(columns: list[tuple[str, str, str]]) -> int:
+    """Columns `_row` will spend a second space on, counted before the fit.
+
+    Measured off the full column list rather than the surviving one, so the
+    reservation can only ever be too generous — a window that drops a column
+    gets a slightly wider summary, never a row one character too long.
+    """
+    return sum(1 for before, after in zip(columns, columns[1:], strict=False)
+               if before[2] == ">" and after[2] == "<")
 
 
 def _chart_spans(inner: int, fixed: int, name_cap: int = 34,
@@ -649,6 +719,67 @@ def _mark_column(header: str, column: str, heads: dict[str, str],
     return header.replace(
         word, f"{ui.RST}{ui.ACCENT}{ui.BOLD}{word}{ui.RST}{ui.MUTED}", 1
     )
+
+
+def _head_rule(heads: str, indent: int = 4, column: str = "",
+               heads_map: dict[str, str] | None = None,
+               descending: bool = True) -> None:
+    """A table's heading row and the rule under it, from one measured string.
+
+    Six reports wrote these two lines themselves and no two wrote them the
+    same way: some rstripped the heading and some shipped a row of trailing
+    spaces, some measured the rule with `len` and some with `ui.cells`, and
+    one measured it off a different string from the rows it was dividing.
+
+    The heading is trimmed and the rule is not: the rule is what every row is
+    checked against, so it spans the full table even where the last heading
+    word stops early.
+    """
+    pad = " " * indent
+    marked = (_mark_column(heads, column, heads_map, descending)
+              if heads_map else heads)
+    print(f"{pad}{ui.MUTED}{marked.rstrip()}{ui.RST}")
+    print(f"{pad}{ui.MUTED}{'─' * ui.cells(heads)}{ui.RST}")
+
+
+def _tiers(rows: list[tuple[int, str, str, str]], total: int, inner: int,
+           indent: int = 4, gauge: int = 10) -> None:
+    """How a count breaks down: number, label, share of the whole, meaning.
+
+    Autonomy and Security both open by sorting everything into three named
+    tiers, and both used to draw that differently — one as a bar chart, one
+    as a run-on line of chips that stopped fitting somewhere past a hundred
+    columns. Two pages that answer the same shape of question should look
+    like each other, so they share this.
+
+    The bar is what stops a tier being read in isolation: "6 YOLO" means one
+    thing in a store of twelve sessions and another in a store of a thousand,
+    and the share is the cheapest way to say which. It is the first thing to
+    go on a narrow window — what a tier *means* outlives how much of the
+    store it covers.
+    """
+    pad = " " * indent
+    if gauge and inner < 54:
+        gauge = 0
+    label_span = max(ui.cells(label) for _count, label, _c, _m in rows) + 1
+    for count, label, colour, meaning in rows:
+        share = (f"{ui.bar(count, total, gauge, colour=colour, track=True)} "
+                 if gauge else "")
+        room = inner - indent - 6 - label_span - gauge - (1 if gauge else 0)
+        print(f"{pad}{colour}{count:>5}{ui.RST}  "
+              f"{_cell(label, label_span, colour=colour)} {share}"
+              f"{ui.MUTED}{ui.trunc(meaning, max(12, room))}{ui.RST}")
+
+
+def _hint(text: str, inner: int, indent: int = 2) -> None:
+    """The muted one-liner that points at the next command to type.
+
+    Every report ends with one or two of these. `cs yolo` used to render its
+    own through `ui.field`, which is a metadata row — it aligned the sentence
+    into a value column nine characters in and then ran it off the window,
+    because a field value is not a hint and does not know the report's width.
+    """
+    print(f"{' ' * indent}{ui.MUTED}{ui._fit(text, inner - indent)}{ui.RST}")
 
 
 def _sort_note(report: str, column: str, descending: bool, width: int) -> str:
@@ -2924,8 +3055,10 @@ def _render_instructions() -> None:
     print()
     if not items:
         print(f"  {ui.MUTED}None found. cs looks for them in:{ui.RST}")
+        print()
         for path in context.instruction_paths():
-            print(f"    {ui.MUTED}{ui._fit(str(path), inner - 2)}{ui.RST}")
+            short = hooks.short(str(path), keep=max(24, inner - 6))
+            print(f"    {ui.CODE}{ui._fit(short, inner - 2)}{ui.RST}")
         print()
         _note("A repository with no instruction file starts every session by "
               "explaining itself again. Anything you would say twice belongs "
@@ -2940,25 +3073,35 @@ def _render_instructions() -> None:
         shape = (f"{len(scoped)} file{'s' if len(scoped) != 1 else ''} · "
                  f"{chars:,} chars" if scoped else "nothing")
         print(ui.field(scope, ui.trunc(shape, inner - 11)))
-        print(f"           {ui.MUTED}{ui.trunc(str(root), inner - 11)}{ui.RST}")
+        # Under its own value, at `field`'s hanging column. Elided from the
+        # middle rather than cut short: a checkout deep enough to overflow
+        # the window is identified by its last two segments, never its first.
+        root_text = hooks.short(str(root), keep=max(24, inner - 13))
+        print(f"           {ui.MUTED}{ui._fit(root_text, inner - 11)}{ui.RST}")
     print(ui.field("limit", f"{context.INSTRUCTION_LIMIT:,} chars per file "
                             f"before Copilot truncates"))
     print()
 
     print(ui.heading(f"Loaded before your first prompt · {len(items)}",
                      ui.ACCENT, inner))
-    spans = _fit_columns(inner - 2, 20, [("chars", 8), ("lines", 6),
-                                         ("headings", 9)],
-                         least=20, flex="file")
-    spans.update(scope=8)
     columns = [("scope", "scope", "<"), ("file", "file", "<"),
                ("chars", "chars", ">"), ("lines", "lines", ">"),
                ("headings", "headings", ">")]
+    # Only `scope` and the space after it are fixed; the file name is the
+    # flexible column. The old figure reserved another eleven characters for
+    # nothing, and the rule under the headings came up eleven short of the
+    # section hairline over them.
+    # Dropped worst-first, and `chars` is worth the most here: it is the
+    # number the limit applies to and the reason the view exists. It used to
+    # be the first column to go, so a narrow window kept the heading count
+    # and lost the only figure that decides whether a file is read whole.
+    spans = _fit_columns(inner - 2, 9,
+                         [("headings", 9), ("lines", 6), ("chars", 8)],
+                         least=20, flex="file", gaps=_extra_gaps(columns))
+    spans.update(scope=8)
     shown = [spec for spec in columns if spans[spec[0]]]
-    heads = " ".join(_cell(head, spans[key], align)
-                     for key, head, align in shown)
-    print(f"    {ui.MUTED}{heads}{ui.RST}")
-    print(f"    {ui.MUTED}{'─' * len(heads)}{ui.RST}")
+    heads = _row(shown, spans)
+    _head_rule(heads)
     for item in items:
         colour = ui.ROSE if item.oversized else ""
         values = {
@@ -2968,31 +3111,41 @@ def _render_instructions() -> None:
             "lines": (str(item.lines), ui.MUTED),
             "headings": (str(item.headings) if item.headings else "·", ui.MUTED),
         }
-        print("    " + " ".join(
-            _cell(values[key][0], spans[key], align, values[key][1])
-            for key, _head, align in shown
-        ).rstrip())
+        print("    " + _row(shown, spans, values).rstrip())
     print()
 
     # The two faults worth naming are the ones that change what the model
     # actually reads: a file past the limit loses its tail, and a long file
-    # with no headings is read as one undifferentiated topic.
-    for item in items:
-        if item.oversized:
+    # with no headings is read as one undifferentiated topic. They used to
+    # float loose under the table with no heading over them, and each
+    # oversized file repeated the same twenty-word remedy — so a checkout
+    # with three long files said "move the scoped rules into…" three times.
+    oversized = [item for item in items if item.oversized]
+    unsectioned = [item for item in items if not item.oversized and item.unsectioned]
+    if oversized or unsectioned:
+        faults = len(oversized) + len(unsectioned)
+        print(ui.heading(f"Not read as written · {faults}",
+                         ui.ROSE if oversized else ui.AMBER, inner))
+        for item in oversized:
             over = item.chars - context.INSTRUCTION_LIMIT
             print(f"    {ui.ROSE}● {item.scope} {item.label}{ui.RST}")
             _item(f"{item.chars:,} characters — the last {over:,} are past the "
-                  f"limit and are not read. Move the scoped rules into "
-                  f".github/instructions/*.instructions.md, which load only "
-                  f"when they match.", inner - 6, marker="→", colour=ui.ROSE,
-                  indent=6)
-            print()
-        elif item.unsectioned:
+                  f"limit and are not read.",
+                  inner - 6, marker="→", colour=ui.ROSE, indent=6)
+        for item in unsectioned:
             print(f"    {ui.AMBER}● {item.scope} {item.label}{ui.RST}")
-            _item(f"{item.lines} lines with no headings. Add ## sections — a "
-                  f"model skims structure the same way you do.",
+            _item(f"{item.lines} lines with no headings — read as one "
+                  f"undifferentiated topic.",
                   inner - 6, marker="→", colour=ui.AMBER, indent=6)
-            print()
+        print()
+        if oversized:
+            _note("Move the scoped rules into .github/instructions/"
+                  "*.instructions.md, which load only when they match.",
+                  inner, indent=4)
+        if unsectioned:
+            _note("Add ## sections — a model skims structure the same way "
+                  "you do.", inner, indent=4)
+        print()
 
     _note("Read from disk, not from the store: this is what your next session "
           "starts with, whatever the last one did. Nothing here is written or "
@@ -3018,6 +3171,51 @@ def cmd_hooks(event: str | None = None, sort_by: str | None = None,
     )
 
 
+def _wrap_path(path: str, width: int) -> list[str]:
+    """A path broken after its separators, never through a name in it.
+
+    `textwrap` breaks wherever the column runs out, which turned
+    `.copilot/settings.json` into `.copilot/setti` and `ngs.json` — two
+    strings, neither of them a path and neither of them a name.
+    """
+    head, _, tail = path.rpartition("/")
+    parts = ([segment + "/" for segment in head.split("/")] + [tail]
+             if head or path.startswith("/") else [path])
+    lines, line = [], ""
+    for part in parts:
+        if line and len(line) + len(part) > width:
+            lines.append(line)
+            line = ""
+        while len(part) > width:  # one name longer than the whole row
+            lines.append(part[:width])
+            part = part[width:]
+        line += part
+    if line:
+        lines.append(line)
+    return lines or [""]
+
+
+def _search_paths(places: list[tuple[object, str]], inner: int) -> None:
+    """Where a kind of configuration can be declared, scope first.
+
+    Both empty states printed `f"{path}  ({scope})"` truncated from the
+    right, which cut the scope off the end of every workspace line — the one
+    word that says whether the file belongs to you or to the repository. The
+    scope leads in a fixed column, the home directory contracts to `~`, and
+    what is left of a long path is elided from the middle, where the least
+    of it is.
+    """
+    room = max(20, inner - 14)
+    for path, scope in places:
+        # Wrapped, never elided. This is the one screen whose whole job is to
+        # tell you where to put the file, and half a path is not somewhere
+        # you can put a file. Only the home directory contracts, to `~`.
+        text = hooks.short(str(path), keep=10_000)
+        for index, part in enumerate(_wrap_path(text, room)):
+            label = scope if index == 0 else ""
+            print(f"    {ui.MUTED}{label:<10}{ui.RST}{ui.CODE}{part}{ui.RST}")
+
+
 def _hook_source(entry: dict) -> str:
     """Where a hook came from, short enough for a column."""
     path = entry["source"]
@@ -3041,8 +3239,8 @@ def _render_hooks(column: str = "when", descending: bool = False) -> None:
         _note("A hook is a command Copilot runs on the lifecycle — when a "
               "session starts, before a tool call, when the agent stops. "
               "cs looks for them in:", inner)
-        for path, scope in hooks.search_paths():
-            print(f"    {ui.MUTED}{ui.trunc(f'{path}  ({scope})', inner - 2)}{ui.RST}")
+        print()
+        _search_paths(hooks.search_paths(), inner)
         print()
         _print_hook_problems(problems, switched_off, inner)
         return
@@ -3072,13 +3270,12 @@ def _render_hooks(column: str = "when", descending: bool = False) -> None:
     for name in sorted(by_event, key=hooks.order):
         count = by_event[name]
         known = "" if name in hooks.EVENTS else f" {ui.AMBER}?{ui.RST}"
-        print(f"    {ui.MINT}{count:>4}{ui.RST}  {ui.trunc(name, 22):<22}"
+        print(f"    {ui.MINT}{count:>5}{ui.RST}  {ui.trunc(name, 22):<22}"
               f" {ui.bar(count, peak, 12)}{known}")
     print()
 
     if absent:
-        print(ui.heading(f"Scripts that are gone · {len(absent)}", ui.ROSE,
-                         inner))
+        print(ui.heading(f"Scripts that are gone · {len(absent)}", ui.ROSE, inner))
         print(f"    {ui.MUTED}"
               f"{ui.trunc('Copilot will still run these, and the shell will fail.', inner - 2)}"
               f"{ui.RST}")
@@ -3093,16 +3290,14 @@ def _render_hooks(column: str = "when", descending: bool = False) -> None:
     entries = _sort_report(entries, "hooks", column, descending)
     # Fixed: indent 4, when 19+1. The matcher goes first when the window
     # narrows — most hooks have none — then where it was declared.
-    spans = _fit_columns(inner - 2, 24, [("tool", 8), ("source", 14)],
-                         least=24, flex="command")
-    spans.update(when=19)
     columns = [("when", "when", "<"), ("tool", "tool", "<"),
                ("command", "runs", "<"), ("source", "from", "<")]
+    spans = _fit_columns(inner - 2, 24, [("tool", 8), ("source", 14)],
+                         least=24, flex="command", gaps=_extra_gaps(columns))
+    spans.update(when=19)
     shown = [spec for spec in columns if spans[spec[0]]]
-    heads = " ".join(_cell(head, spans[key], align) for key, head, align in shown)
-    print(f"    {ui.MUTED}"
-          f"{_mark_column(heads, column, _HOOKS_HEADS, descending)}{ui.RST}")
-    print(f"    {ui.MUTED}{'─' * len(heads)}{ui.RST}")
+    heads = _row(shown, spans)
+    _head_rule(heads, 4, column, _HOOKS_HEADS, descending)
     for entry in entries:
         values = {
             "when": (entry["event"], ui.SKY),
@@ -3114,10 +3309,7 @@ def _render_hooks(column: str = "when", descending: bool = False) -> None:
                         ui.ROSE if entry["missing"] else ""),
             "source": (_hook_source(entry), ui.MUTED),
         }
-        print("    " + " ".join(
-            _cell(values[key][0], spans[key], align, values[key][1])
-            for key, _head, align in shown
-        ).rstrip())
+        print("    " + _row(shown, spans, values).rstrip())
     print()
     _print_hook_problems(problems, switched_off, inner)
     _why("Hooks are configuration, not history: the session store records "
@@ -3133,15 +3325,18 @@ def _render_hooks(column: str = "when", descending: bool = False) -> None:
 def _print_hook_problems(problems: list, switched_off: list, inner: int) -> None:
     """Files that would have declared hooks, and don't — for two reasons."""
     if problems:
-        print(ui.heading(f"Not loaded · {len(problems)}", ui.ROSE))
+        print(ui.heading(f"Not loaded · {len(problems)}", ui.ROSE, inner))
         for path, why in problems:
             print(f"    {ui.ROSE}{ui.trunc(redact.plain(path.name), inner - 2)}{ui.RST}")
             print(f"      {ui.MUTED}{ui.trunc(why, inner - 6)}{ui.RST}")
         print()
     if switched_off:
-        print(ui.heading(f"Switched off · {len(switched_off)}", ui.AMBER))
+        print(ui.heading(f"Switched off · {len(switched_off)}", ui.AMBER, inner))
         for path in switched_off:
-            print(f"    {ui.MUTED}{ui.trunc(redact.plain(str(path)), inner - 2)}{ui.RST}")
+            # Abbreviated from the middle: `.off` and `.bak` are the whole
+            # story of a parked file, and truncating loses exactly that.
+            short = hooks.short(redact.plain(str(path)), keep=max(24, inner - 6))
+            print(f"    {ui.MUTED}{ui._fit(short, inner - 2)}{ui.RST}")
         print()
 
 
@@ -3200,8 +3395,27 @@ def cmd_mcp(name: str | None = None, sort_by: str | None = None,
 
 
 def _mcp_source(server: dict) -> str:
-    """Where a server was declared, short enough for a column."""
-    return f"{server['scope'][:4]}:{redact.one_line(server['source'].name)}"
+    """Where a server was declared, short enough for a column.
+
+    Without the extension: every file this can name is JSON, so five of the
+    twenty characters said nothing and cost the rest of the name.
+    """
+    name = redact.one_line(server["source"].name)
+    return f"{server['scope'][:4]}:{name.removesuffix('.json')}"
+
+
+def _mcp_endpoint(server: dict) -> str:
+    """What the server actually is, with the part that never varies removed.
+
+    Every remote endpoint began `https://`, which is eight columns of the
+    same eight characters on every row and was pushing the host — the only
+    thing that identifies the server — off the end of the column.
+    """
+    endpoint = redact.redact(server["endpoint"])
+    for scheme in ("https://", "http://"):
+        if endpoint.startswith(scheme):
+            return endpoint[len(scheme):]
+    return hooks.short(endpoint, keep=34)
 
 
 def _mcp_tools(server: dict) -> str:
@@ -3220,7 +3434,7 @@ def _render_mcp(column: str = "name", descending: bool = False) -> None:
     inner = width - 4
 
     print()
-    print(ui.rule(inner, f"MCP · {len(servers)} servers"))
+    print(ui.rule(inner, f"MCP servers · {len(servers)}"))
     print()
     if not servers:
         print(f"  {ui.MUTED}No MCP server is configured.{ui.RST}")
@@ -3228,8 +3442,8 @@ def _render_mcp(column: str = "name", descending: bool = False) -> None:
         _note("An MCP server is a tool source Copilot can call that is not "
               "its own — a local process, or an HTTP endpoint. cs looks for "
               "them in:", inner)
-        for path, scope in mcp.search_paths():
-            print(f"    {ui.MUTED}{ui.trunc(f'{path}  ({scope})', inner - 2)}{ui.RST}")
+        print()
+        _search_paths(mcp.search_paths(), inner)
         print()
         _print_mcp_problems(problems, switched_off, inner)
         return
@@ -3261,7 +3475,7 @@ def _render_mcp(column: str = "name", descending: bool = False) -> None:
                                   f"on this machine"))
     print()
 
-    print(ui.heading(f"Every server · {len(servers)}", ui.ACCENT))
+    print(ui.heading(f"Every server · {len(servers)}", ui.ACCENT, inner))
     ordered = _sort_report(servers, "mcp", column, descending)
     # Indent 4, then name, transport 9, tools 6 and their gaps. The endpoint
     # flexes, and `from` is the first column a narrow window drops — a handful
@@ -3271,19 +3485,21 @@ def _render_mcp(column: str = "name", descending: bool = False) -> None:
     # characters of `npx -y @some/server` would be the wrong trade. The name
     # gives ground too rather than staying at 20 and pushing the row off a
     # small window.
-    name_span = max(10, min(20, inner - 33))
-    spans = _fit_columns(inner - 2, name_span + 22,
-                         [("source", 16), ("sessions", 9)],
-                         least=14, flex="endpoint")
-    spans.update(name=name_span, transport=9, tools=6)
+    name_span = max(10, min(20, inner - 33,
+                            max(ui.cells(s["name"]) for s in servers)))
     columns = [("name", "server", "<"), ("transport", "transport", "<"),
                ("endpoint", "runs", "<"), ("tools", "tools", ">"),
                ("sessions", "sessions", ">"), ("source", "from", "<")]
+    # name + transport(9) + tools(6), each with the space after it: the old
+    # figure was four columns too generous, so the rule under the headings
+    # stopped short of the section hairline above them.
+    spans = _fit_columns(inner - 2, name_span + 1 + 10 + 7,
+                         [("source", 18), ("sessions", 9)],
+                         least=14, flex="endpoint", gaps=_extra_gaps(columns))
+    spans.update(name=name_span, transport=9, tools=6)
     shown = [spec for spec in columns if spans[spec[0]]]
-    heads = " ".join(_cell(head, spans[key], align) for key, head, align in shown)
-    print(f"    {ui.MUTED}"
-          f"{_mark_column(heads, column, _MCP_HEADS, descending)}{ui.RST}")
-    print(f"    {ui.MUTED}{'─' * len(heads)}{ui.RST}")
+    heads = _row(shown, spans)
+    _head_rule(heads, 4, column, _MCP_HEADS, descending)
     for server in ordered:
         # A remote server is coloured because it is the one that matters: a
         # local command is code you already have, an https endpoint is your
@@ -3295,7 +3511,7 @@ def _render_mcp(column: str = "name", descending: bool = False) -> None:
             "transport": (server["transport"], transport),
             # Masked like every other view: a config line is where a pasted
             # token ends up, and this one is read out of the repository.
-            "endpoint": (redact.redact(server["endpoint"]),
+            "endpoint": (_mcp_endpoint(server),
                          ui.ROSE if server["missing"] else ""),
             "tools": (_mcp_tools(server),
                       ui.AMBER if server["all_tools"] else ui.MUTED),
@@ -3303,15 +3519,13 @@ def _render_mcp(column: str = "name", descending: bool = False) -> None:
                          "" if server["sessions"] else ui.MUTED),
             "source": (_mcp_source(server), ui.MUTED),
         }
-        print("    " + " ".join(
-            _cell(values[key][0], spans[key], align, values[key][1])
-            for key, _head, align in shown
-        ).rstrip())
+        print("    " + _row(shown, spans, values).rstrip())
     print()
 
     if leaking:
-        print(ui.heading(f"Credentials written into the config · {len(leaking)}",
-                         ui.ROSE))
+        print(ui.heading(
+            ui._fit(f"Credentials written into the config · {len(leaking)}", inner),
+            ui.ROSE, inner))
         warning = ("A literal value, not ${VAR} — so it is in the file, and "
                    "the file gets committed.")
         print(f"    {ui.MUTED}{ui.trunc(warning, inner - 2)}{ui.RST}")
@@ -3322,7 +3536,7 @@ def _render_mcp(column: str = "name", descending: bool = False) -> None:
         print()
 
     if absent:
-        print(ui.heading(f"Commands that are gone · {len(absent)}", ui.ROSE))
+        print(ui.heading(f"Commands that are gone · {len(absent)}", ui.ROSE, inner))
         warning = "Copilot will still try to start these, and the spawn will fail."
         print(f"    {ui.MUTED}{ui.trunc(warning, inner - 2)}{ui.RST}")
         for server in absent:
@@ -3357,13 +3571,13 @@ def _render_mcp(column: str = "name", descending: bool = False) -> None:
 def _print_mcp_problems(problems: list, switched_off: list, inner: int) -> None:
     """Files that would have declared a server, and don't — for two reasons."""
     if problems:
-        print(ui.heading(f"Not loaded · {len(problems)}", ui.ROSE))
+        print(ui.heading(f"Not loaded · {len(problems)}", ui.ROSE, inner))
         for path, why in problems:
             print(f"    {ui.ROSE}{ui.trunc(redact.plain(path.name), inner - 2)}{ui.RST}")
             print(f"      {ui.MUTED}{ui.trunc(why, inner - 6)}{ui.RST}")
         print()
     if switched_off:
-        print(ui.heading(f"Switched off · {len(switched_off)}", ui.AMBER))
+        print(ui.heading(f"Switched off · {len(switched_off)}", ui.AMBER, inner))
         for path in switched_off:
             # Abbreviated from the middle, not truncated from the right: the
             # suffix is the whole point of the line — `.bak` and `.sample` are
@@ -3385,7 +3599,7 @@ def _render_mcp_server(name: str) -> None:
     )
     print()
     if not match:
-        print(ui.rule(inner, f"MCP · {redact.one_line(name)}"))
+        print(ui.rule(inner, f"MCP servers · {redact.one_line(name)}"))
         print()
         print(f"  {ui.MUTED}No MCP server named '{redact.one_line(name)}' is "
               f"configured.{ui.RST}")
@@ -3400,13 +3614,15 @@ def _render_mcp_server(name: str) -> None:
     rows = db.sessions_for_mcp(conn, match)
     conn.close()
 
-    print(ui.rule(inner, f"{match} · {len(rows)} sessions"))
+    print(ui.rule(inner, f"MCP servers · {match}",
+                  note=f"{len(rows)} sessions"))
     print()
     print(ui.field("type", server["transport"]))
     print(ui.field("runs", ui.trunc(redact.redact(server["endpoint"]), inner - 11)))
     print(ui.field("scope", server["scope"]))
-    print(ui.field("declared", ui.trunc(redact.plain(str(server["source"])),
-                                        inner - 11)))
+    declared = hooks.short(redact.plain(str(server["source"])),
+                           keep=max(24, inner - 13))
+    print(ui.field("declared", ui._fit(declared, inner - 11)))
     if server["off"]:
         print(ui.field("tools", "none — every tool is switched off"))
     elif server["all_tools"]:
@@ -3429,10 +3645,28 @@ def _render_mcp_server(name: str) -> None:
         print(f"  {ui.MUTED}No session names it.{ui.RST}")
         print()
         return
+
+    # The same table shape as every other listing, rather than two lines per
+    # session with a full uuid and `cs show` repeated down the page: the id
+    # is a column, and the command that takes one is named once underneath.
+    columns = [("active", "last active", "<"), ("session", "session", "<"),
+               ("summary", "summary", "<")]
+    spans = _fit_columns(inner - 2, 10, [("active", 12)],
+                         gaps=_extra_gaps(columns))
+    spans.update(session=9)
+    shown = [spec for spec in columns if spans[spec[0]]]
+    heads = _row(shown, spans)
+    print(ui.heading(f"Sessions that named it · {len(rows)}", ui.ACCENT, inner))
+    _head_rule(heads)
     for session_id, summary, last_active in rows:
-        print(f"    {ui.MUTED}{last_active[:16]}{ui.RST}  "
-              f"{ui.trunc(redact.redact(summary), inner - 26)}")
-        print(f"    {ui.MUTED}            cs show {session_id}{ui.RST}")
+        values = {
+            "active": (_when(last_active), ui.MUTED),
+            "session": (session_id[:8], ui.SKY),
+            "summary": (redact.redact(summary) or "(untitled)", ""),
+        }
+        print("    " + _row(shown, spans, values).rstrip())
+    print()
+    _hint("cs show <session> — one session's ledger", inner)
     print()
 
 
@@ -3923,13 +4157,6 @@ def _render_agents(days: int) -> None:
 # None of the three is a column in the store — see cs/signals.py for how each
 # is read out of what is recorded, and what evidence backs it.
 
-_VERDICTS = {
-    "yes": (ui.ROSE, "approvals off, on the evidence of the session itself"),
-    "high": (ui.AMBER, "no evidence either way, but it ran unattended"),
-    "no": (ui.MINT, "prompted often enough to be supervised"),
-}
-
-
 def _when(stamp: str) -> str:
     """A timestamp as a person reads it: no date-time 'T' in the middle."""
     return stamp[5:16].replace("T", " ")
@@ -3945,6 +4172,72 @@ def cmd_yolo(show_all: bool = False, sort_by: str | None = None,
     )
 
 
+# ── Autonomy ─────────────────────────────────────────────────────────
+# One tier per verdict, in the order you would deal with them. The label is
+# what the section heading says, the meaning is what the tier block says, and
+# the note is the finding under the heading — printed always, because it is
+# about the rows in front of you rather than about how the view works.
+_AUTONOMY = {
+    "yes": (ui.ROSE, "YOLO", "approvals off, on the evidence of the session itself",
+            "Approvals off", "You turned approvals off yourself."),
+    "high": (ui.AMBER, "unattended", "no evidence either way, but it ran unattended",
+             "Ran unattended",
+             "No flag either way — these ran too far between prompts for "
+             "anyone to have been watching."),
+    "no": (ui.MINT, "supervised", "prompted often enough to be supervised",
+           "Supervised", "Prompted often enough that you saw it happening."),
+}
+
+
+def _yolo_evidence(why: str) -> str:
+    """The approvals-off evidence as a column rather than a sentence.
+
+    `signals` writes the verdict as prose — "you passed --allow-all-tools" —
+    which is the right shape for one session's ledger and the wrong shape for
+    a table, where the same clause repeats down every row. The flag is the
+    part that differs; the section heading carries the rest.
+    """
+    passed = "you passed "
+    return why[len(passed):] if why.startswith(passed) else "typed in session"
+
+
+def _yolo_table(rows: list[dict], inner: int, column: str, descending: bool,
+                evidence: bool) -> None:
+    """One verdict's sessions. Same shape as handoff and audit.
+
+    The evidence column exists only where there is evidence to put in it: for
+    an inferred verdict the reason *is* the rate, and a column repeating it in
+    words would be the third time the same fact appeared on one row.
+    """
+    columns = [
+        ("active", "last active", "<"), ("session", "session", "<"),
+        ("turns", "turns", ">"), ("steps", "steps", ">"),
+        ("ratio", "per turn", ">"), ("evidence", "evidence", "<"),
+        ("summary", "summary", "<"),
+    ]
+    optional = [("active", 12), ("turns", 5), ("steps", 6)]
+    if evidence:
+        optional.insert(2, ("evidence", 17))
+    spans = _fit_columns(inner - 2, 20, optional, gaps=_extra_gaps(columns))
+    spans.update(session=9, ratio=9)
+    shown = [spec for spec in columns if spans.get(spec[0])]
+    heads = _row(shown, spans)
+    _head_rule(heads, 4, column, _YOLO_HEADS, descending)
+    for row in rows:
+        colour = _AUTONOMY[row["verdict"]][0]
+        values = {
+            "active": (_when(row["active"]), ui.MUTED),
+            "session": (row["id"][:8], ui.SKY),
+            "turns": (str(row["turns"]), ""),
+            "steps": (str(row["steps"]), ""),
+            "ratio": (f"{row['ratio']:.1f}", colour),
+            "evidence": (_yolo_evidence(row["why"]), ui.CODE),
+            "summary": (redact.redact(row["summary"]) or "(untitled)", ""),
+        }
+        print("    " + _row(shown, spans, values).rstrip())
+    print()
+
+
 def _render_yolo(show_all: bool, column: str = "risk",
                  descending: bool = True) -> None:
     conn = db.connect()
@@ -3954,88 +4247,77 @@ def _render_yolo(show_all: bool, column: str = "risk",
     width = min(shutil.get_terminal_size().columns, 96)
     inner = width - 4
 
-    counts = {name: sum(1 for r in rows if r["verdict"] == name) for name in _VERDICTS}
+    grouped = {name: [r for r in rows if r["verdict"] == name] for name in _AUTONOMY}
     print()
-    print(ui.rule(inner, f"Autonomy · {len(rows)} sessions with prompts"))
+    print(ui.rule(inner, f"Autonomy · {len(rows):,} sessions scanned"))
     print()
     if not rows:
         print(f"  {ui.MUTED}No session in this store has a recorded prompt.{ui.RST}")
         print()
-        return
-
-    # A share bar beside each count, so the three numbers read as one
-    # distribution. "4 YOLO" means something different in a store of twelve
-    # sessions than in a store of four hundred, and the bar is the cheapest
-    # way to say which of those you are looking at.
-    # The gauge is the first thing to go on a narrow window: what a verdict
-    # means is worth more than how much of the store it covers.
-    gauge = 10 if inner >= 54 else 0
-    for name, (colour, meaning) in _VERDICTS.items():
-        label = {"yes": "YOLO", "high": "unattended", "no": "supervised"}[name]
-        share = (f"{ui.bar(counts[name], len(rows), gauge, colour=colour, track=True)} "
-                 if gauge else "")
-        print(
-            f"    {colour}{counts[name]:>5}{ui.RST}  {label:<12} {share}"
-            f"{ui.MUTED}{ui.trunc(meaning, max(12, inner - 24 - gauge))}{ui.RST}"
-        )
-    print()
-
-    shown = rows if show_all else [r for r in rows if r["verdict"] != "no"]
-    if not shown:
-        print(f"  {ui.MINT}Nothing ran away with itself — every session was "
-              f"supervised.{ui.RST}")
-        print(f"  {ui.MUTED}cs yolo --all lists them anyway.{ui.RST}")
+        _note("Autonomy is steps per prompt, so a session with no prompt has "
+              "nothing to divide by and is left out rather than scored.", inner)
         print()
         return
 
-    # Same shape as handoff and audit: one column list builds the heading, the
-    # divider and the rows, and columns give way as the window narrows. The
-    # date goes first — what this view is for is the evidence beside it.
-    spans = _fit_columns(inner, 26,
-                         [("active", 12), ("turns", 5), ("steps", 6)])
-    spans.update(mark=5, session=9, ratio=9)
-    columns = [
-        ("mark", "", "<"), ("session", "session", "<"),
-        ("active", "last active", "<"), ("turns", "turns", ">"),
-        ("steps", "steps", ">"), ("ratio", "per turn", ">"),
-        ("summary", "summary", "<"),
-    ]
-    layout = [spec for spec in columns if spans[spec[0]]]
-    heads = " ".join(_cell(head, spans[key], align) for key, head, align in layout)
-    print(f"  {ui.MUTED}{_mark_column(heads, column, _YOLO_HEADS, descending)}{ui.RST}")
-    print(ui.rule(inner))
-    for row in shown:
-        colour = _VERDICTS[row["verdict"]][0]
-        values = {
-            "mark": ({"yes": "YOLO", "high": "auto", "no": "ok"}[row["verdict"]],
-                     colour),
-            "session": (row["id"][:8], ui.SKY),
-            "active": (_when(row["active"]), ui.MUTED),
-            "turns": (str(row["turns"]), ""),
-            "steps": (str(row["steps"]), ""),
-            "ratio": (f"{row['ratio']:.1f}", ""),
-            "summary": (redact.redact(row["summary"]) or "(untitled)", ""),
-        }
-        print("  " + " ".join(
-            _cell(values[key][0], spans[key], align, values[key][1])
-            for key, _head, align in layout
-        ).rstrip())
-        if row["verdict"] == "yes":
-            print(f"        {ui.MUTED}{ui.trunc(row['why'], inner - 6)}{ui.RST}")
+    # Lead with the verdict, the way Security leads with whether anything is
+    # yours to fix. A page that opens on a table makes you count the rows to
+    # find out whether it is bad news.
+    loose = len(grouped["yes"]) + len(grouped["high"])
+    if grouped["yes"]:
+        status, colour = "APPROVALS WERE TURNED OFF", ui.ROSE
+    elif grouped["high"]:
+        status, colour = "RAN UNATTENDED", ui.AMBER
+    else:
+        status, colour = "EVERY SESSION WAS SUPERVISED", ui.MINT
+    print(f"  {colour}{ui.BOLD}● {status}{ui.RST}")
+    if loose:
+        headline = (
+            f"{loose} session{'' if loose == 1 else 's'} of {len(rows):,} ran "
+            f"with nobody approving each step"
+            + (f" · {len(grouped['yes'])} with approvals off outright"
+               if grouped["yes"] else "")
+        )
+    else:
+        headline = f"All {len(rows):,} sessions were prompted along the way"
+    for line in textwrap.wrap(headline, max(24, inner - 2)):
+        print(f"    {ui.BOLD}{line}{ui.RST}")
     print()
-    if not show_all:
-        # ui.field does not fit its window — an over-long value runs past the
-        # edge. Every other line in this view is fitted, so this one is too.
-        print(ui.field("all", ui.trunc("cs yolo --all — including supervised "
-                                       "sessions", inner - 7)))
+
+    _tiers([(len(grouped[name]), label, colour, meaning)
+            for name, (colour, label, meaning, _head, _note) in _AUTONOMY.items()],
+           len(rows), inner)
     print()
-    note = ("The store records no approval mode, so YOLO is read from what the "
-            "session shows: a flag or toggle you typed. Unattended is inferred "
-            f"— {signals.UNATTENDED_RATIO:.0f}+ agent steps per prompt over "
-            f"{signals.UNATTENDED_STEPS}+ steps.")
-    for line in textwrap.wrap(note, max(30, inner)):
-        print(f"  {ui.MUTED}{line}{ui.RST}")
+
+    shown = ["yes", "high"] + (["no"] if show_all else [])
+    if not any(grouped[name] for name in shown):
+        print(f"  {ui.MINT}Nothing ran away with itself — every session was "
+              f"supervised.{ui.RST}")
+        print()
+        _hint("cs yolo --all — list the supervised sessions too", inner)
+        print()
+        return
+
+    for name in shown:
+        group = grouped[name]
+        if not group:
+            continue
+        tone, _label, _meaning, heading, finding = _AUTONOMY[name]
+        print(ui.heading(ui._fit(f"{heading} · {len(group)}", inner), tone, inner))
+        _note(finding, inner, indent=4)
+        print()
+        _yolo_table(group, inner, column, descending, evidence=(name == "yes"))
+
+    if not show_all and grouped["no"]:
+        _hint(f"cs yolo --all — the {len(grouped['no']):,} supervised sessions too",
+              inner)
+    _why("The store records no approval mode, so YOLO is read from what the "
+         "session shows: a flag or a toggle you typed, in one of your own "
+         "messages — the store is full of the agent explaining these flags, "
+         "and none of that counts. Unattended is inferred instead, from "
+         f"{signals.UNATTENDED_RATIO:.0f}+ agent steps per prompt over "
+         f"{signals.UNATTENDED_STEPS}+ steps.", inner)
     print(_sort_note("yolo", column, descending, inner))
+    _why_hint(inner)
     print()
 
 
@@ -4128,24 +4410,23 @@ def _render_handoffs(column: str = "active", descending: bool = True) -> None:
     # Fixed: indent 4, session 9+1, role 9+1. Everything else gives way as the
     # window narrows, the document first — it is nearly always HANDOFF.md, and
     # cs handoff <id> shows the full path anyway.
-    spans = _fit_columns(inner - 2, 24,
-                         [("document", 13), ("active", 12),
-                          ("chain", 5), ("turns", 5)])
-    spans.update(session=9, role=9)
     columns = [
         ("active", "last active", "<"), ("session", "session", "<"),
         ("role", "role", "<"), ("turns", "turns", ">"),
         ("chain", "chain", ">"), ("document", "document", "<"),
         ("summary", "summary", "<"),
     ]
+    spans = _fit_columns(inner - 2, 24,
+                         [("document", 13), ("active", 12),
+                          ("chain", 5), ("turns", 5)],
+                         gaps=_extra_gaps(columns))
+    spans.update(session=9, role=9)
     shown = [spec for spec in columns if spans[spec[0]]]
     # Heads and rows are built from one list, so they cannot drift apart — the
     # divider used to be measured off a separately written head string, and
     # stopped 25 columns short of the rows it was dividing.
-    heads = " ".join(_cell(head, spans[key], align) for key, head, align in shown)
-    print(f"    {ui.MUTED}"
-          f"{_mark_column(heads, column, _HANDOFF_HEADS, descending)}{ui.RST}")
-    print(f"    {ui.MUTED}{'─' * len(heads)}{ui.RST}")
+    heads = _row(shown, spans)
+    _head_rule(heads, 4, column, _HANDOFF_HEADS, descending)
     for row in rows:
         role_colour = _ROLES[row["role"]][0]
         # Only the file name: every one of these is called HANDOFF.md or near
@@ -4163,10 +4444,7 @@ def _render_handoffs(column: str = "active", descending: bool = True) -> None:
             "document": (doc, ui.MUTED),
             "summary": (redact.redact(row["summary"]) or "(untitled)", ""),
         }
-        print("    " + " ".join(
-            _cell(values[key][0], spans[key], align, values[key][1])
-            for key, _head, align in shown
-        ).rstrip())
+        print("    " + _row(shown, spans, values).rstrip())
     print()
     print(_sort_note("handoff", column, descending, inner))
     print()
@@ -4321,6 +4599,7 @@ def _render_audit(ref: str | None, column: str = "risk",
         sys.exit(1)
     rows = signals.exposures(conn, session_id)
     touched = signals.sensitive_files(conn, session_id)
+    destructive = signals.destructive(conn, session_id)
     total_sessions = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
     conn.close()
     rows = _sort_report(rows, "audit", column, descending)
@@ -4329,32 +4608,35 @@ def _render_audit(ref: str | None, column: str = "risk",
     width = min(shutil.get_terminal_size().columns, 156)
     inner = width - 4
 
-    scope = (f"session {session_id[:8]}" if session_id
-             else f"{total_sessions:,} sessions scanned")
-    title = f"Security posture · {scope}"
-    if len(title) > inner - 4:
-        title = (f"Security · {session_id[:8]}" if session_id
-                 else f"Security · {total_sessions:,} scanned")
+    # Named for the menu row that opens it. It used to be "Security posture"
+    # on a wide window and "Security" on a narrow one, which is two names for
+    # one page and neither of them the one you chose from the landing screen.
+    title = (f"Security · session {session_id[:8]}" if session_id
+             else f"Security · {total_sessions:,} sessions scanned")
     print()
     print(ui.rule(inner, title))
     print()
     if not rows and not touched:
         print(f"  {ui.MINT}Nothing credential-shaped found.{ui.RST}")
         print()
-        checked = (
-            "Checked every prompt and reply, the latest checkpoint content "
-            "shown by cs show, and every touched path whose name indicates "
-            "a credential file."
-        )
-        for line in textwrap.wrap(checked, max(20, inner)):
-            print(f"  {ui.MUTED}{line}{ui.RST}")
+        _note("Checked every prompt and reply, the latest checkpoint content "
+              "shown by cs show, and every touched path whose name indicates "
+              "a credential file.", inner)
         print()
+        # Clean of credentials is not clean: a session that removed a tree or
+        # forced a push has nothing credential-shaped in it and is still the
+        # thing you opened this page to find.
+        _print_destructive(destructive, inner, "ran")
+        _print_destructive(destructive, inner, "proposed")
+        _print_audit_footnote(inner, column, descending)
         return
     if not rows:
         # Files alone is still a finding, and still the whole report.
         print(f"  {ui.MINT}No credential-shaped text in scanned session content.{ui.RST}")
         print()
+        _print_destructive(destructive, inner, "ran")
         _print_credential_files(touched, inner)
+        _print_destructive(destructive, inner, "proposed")
         _print_audit_footnote(inner, column, descending)
         return
 
@@ -4379,8 +4661,12 @@ def _render_audit(ref: str | None, column: str = "risk",
 
     # This is an action screen, not an inventory report. Lead with ownership
     # and urgency; totals and confidence exist to size the work underneath.
-    status = "ACTION REQUIRED" if pasted else "REVIEW REQUIRED"
-    status_colour = ui.ROSE if pasted else ui.AMBER
+    #
+    # A destruction the session says it carried out outranks a credential:
+    # a key can be rotated, and a deleted tree is a restore or it is gone.
+    done = [row for row in destructive if row["basis"] == "ran"]
+    status = ("ACTION REQUIRED" if pasted or done else "REVIEW REQUIRED")
+    status_colour = ui.ROSE if pasted or done else ui.AMBER
     print(f"  {status_colour}{ui.BOLD}● {status}{ui.RST}")
     if pasted:
         headline = (
@@ -4403,36 +4689,42 @@ def _render_audit(ref: str | None, column: str = "risk",
             f"{session_count} session{'' if session_count == 1 else 's'} need review"
             f" · {' · '.join(review_parts)}"
         )
+    hardcoded = [r for r in rows if r["hardcoded"]]
+    if hardcoded:
+        headline += (f" · {len(hardcoded)} hardcoded in "
+                     f"{'a session' if len(hardcoded) == 1 else 'sessions'} "
+                     f"that wrote files")
+    if done:
+        wrecked = len({row["id"] for row in done})
+        headline += (f" · {wrecked} session{'' if wrecked == 1 else 's'} "
+                     f"{'reports' if wrecked == 1 else 'report'} "
+                     f"destroying something")
     for line in textwrap.wrap(headline, max(24, inner - 2)):
         print(f"    {ui.BOLD}{line}{ui.RST}")
     detail = (f"{findings} finding{'' if findings == 1 else 's'} across "
               f"{session_count} session{'' if session_count == 1 else 's'}. "
-              "Rotate confirmed live credentials first; use the inspect "
-              "command under a row to open its exact turn.")
+              "Rotate confirmed live credentials first.")
     for line in textwrap.wrap(detail, max(24, inner - 2)):
         print(f"    {ui.MUTED}{line}{ui.RST}")
     print()
 
-    tiers = [
-        ("critical", "confirmed key format"),
-        ("high", "token or URL login"),
-        ("medium", "named assignment"),
-    ]
-    # Each count sits next to what it means. The three-column grid before this
-    # stretched a ten-character label across fifty on a wide terminal and put
-    # the meanings on a second row, so reading one tier meant counting across.
-    chips = [f"{risk_totals[name]} {_RISK_LABEL[name].upper()} {meaning}"
-             for name, meaning in tiers]
-    if len(" · ".join(chips)) <= inner - 2:
-        print("  " + f" {ui.MUTED}·{ui.RST} ".join(
-            f"{_RISK[name][0]}{risk_totals[name]} {_RISK_LABEL[name].upper()}"
-            f"{ui.RST} {ui.MUTED}{meaning}{ui.RST}"
-            for name, meaning in tiers
-        ))
-    else:
-        for name, meaning in tiers:
-            label = f"{risk_totals[name]:>3}  {_RISK_LABEL[name].upper():<8}"
-            print(f"  {_RISK[name][0]}{label}{ui.RST}  {ui.MUTED}{meaning}{ui.RST}")
+    # Each count sits next to what it means, and next to how much of the
+    # total it is. This was a run-on line of chips that fitted a hundred
+    # columns and ran off anything narrower, and before that a three-column
+    # grid you had to count across to pair a label with its meaning. It is
+    # the same block Autonomy opens with, because it answers the same shape
+    # of question: which tier is this store actually made of?
+    # First, because it is the one thing on this page that cannot be undone
+    # by rotating a value — and because it was last, under a hundred and forty
+    # lines of credential rows, which is the same as not being here.
+    _print_destructive(destructive, inner, "ran")
+
+    print(ui.heading(f"Credentials · {findings}", ui.ACCENT, inner))
+    _tiers([(risk_totals[name], _RISK_LABEL[name].upper(), _RISK[name][0], meaning)
+            for name, meaning in (("critical", "confirmed key format"),
+                                  ("high", "token or URL login"),
+                                  ("medium", "named assignment"))],
+           max(findings, 1), inner)
     print()
 
     # Split rather than mixed: a secret you pasted and one the agent read out
@@ -4441,19 +4733,24 @@ def _render_audit(ref: str | None, column: str = "risk",
     # Risk and session never disappear: they answer "how urgent?" and "where?"
     # Date, count, turn and finding fall away in that order so the summary
     # remains readable instead of becoming a separate four-line block.
-    spans = _fit_columns(inner - 2, 19, [
-        ("active", 12), ("found", 5), ("turn", 5), ("names", 22),
-    ])
-    spans.update(risk=8, session=9)
     columns = [
         ("risk", "risk", "<"),
         ("active", "last active", "<"), ("session", "session", "<"),
         ("found", "found", ">"), ("turn", "turn", ">"),
         ("names", "finding", "<"), ("summary", "summary", "<"),
     ]
+    # The finding column takes what the longest finding actually needs, up to
+    # twenty-two. Fixed at twenty-two it padded `DB_PASSWORD` with eleven
+    # spaces and took them off the summary, which is the column that runs out
+    # first on a small window.
+    named = max(ui.cells(_names(r["hints"] or list(r["kinds"]), 22)) for r in rows)
+    spans = _fit_columns(inner - 2, 20, [
+        ("active", 12), ("found", 5), ("turn", 5), ("names", min(22, named)),
+    ], gaps=_extra_gaps(columns))
+    spans.update(risk=9, session=9)
     shown = [spec for spec in columns if spans[spec[0]]]
-    heads = " ".join(_cell(head, spans[key], align) for key, head, align in shown)
-    table = len(heads)  # what every rule, row and continuation is measured to
+    heads = _row(shown, spans)
+    table = ui.cells(heads)  # what every rule, row and continuation is measured to
     for group, label, colour, note in (
         (pasted, "Immediate action · pasted by you", ui.ROSE,
          "These values are stored in session transcripts. Rotate live "
@@ -4468,27 +4765,26 @@ def _render_audit(ref: str | None, column: str = "risk",
     ):
         if not group:
             continue
-        print(ui.heading(ui._fit(f"{label} · {len(group)}", inner), colour))
-        for line in textwrap.wrap(note, max(30, inner - 6)):
-            print(f"    {ui.MUTED}{line}{ui.RST}")
+        print(ui.heading(ui._fit(f"{label} · {len(group)}", inner), colour, inner))
+        _why(note, inner, indent=4)
         print()
-        print(f"    {ui.MUTED}"
-              f"{_mark_column(heads, column, _AUDIT_HEADS, descending).rstrip()}"
-              f"{ui.RST}")
-        print(f"    {ui.MUTED}{'─' * table}{ui.RST}")
+        _head_rule(heads, 4, column, _AUDIT_HEADS, descending)
         ordered = _sort_report(group, "audit", column, descending)
-        # The continuation line is indented two further than the row it belongs
-        # to, and is laid out as two columns of its own rather than as a
-        # sentence: sized off the longest command in the group, every `inspect`
-        # starts in the same place and no evidence runs into one.
+        # The evidence sits on its own line under the row, hanging off a rail
+        # so the table keeps its left edge. It used to share that line with
+        # `inspect cs read <id> --turn <n>`, repeated on all forty rows of a
+        # real store — thirty-five columns of boilerplate whose only two
+        # variables, the session and the turn, are already columns of the row
+        # above it. The command is named once, under the table, the way every
+        # other view in cs names its drill-down.
         available = table - 2
-        command_span = max(len(f"inspect {_audit_command(row)}") for row in ordered)
-        evidence_span = available - len("evidence  ") - 2 - command_span
         for row in ordered:
             # With no identifier to show — a private key, a JWT — the kind is
             # the most specific thing that can be said without quoting it.
             values = {
-                "risk": (_RISK_LABEL[row["severity"]], _RISK[row["severity"]][0]),
+                "risk": ((_HARDCODED[1], _HARDCODED[0]) if row["hardcoded"]
+                         else (_RISK_LABEL[row["severity"]],
+                               _RISK[row["severity"]][0])),
                 "active": (_when(row["active"]), ui.MUTED),
                 "session": (row["id"][:8], ui.SKY),
                 "found": (str(row["count"]), colour),
@@ -4500,33 +4796,124 @@ def _render_audit(ref: str | None, column: str = "risk",
                           ui.CODE),
                 "summary": (redact.redact(row["summary"]) or "(untitled)", ""),
             }
-            print("    " + " ".join(
-                _cell(values[key][0], spans[key], align, values[key][1])
-                for key, _head, align in shown
-            ).rstrip())
-            command = _audit_command(row)
-            # The label goes before the command does: a truncated command is
-            # not a command, and the row it came from already says "inspect".
-            command_text = f"inspect {command}"
-            if ui.cells(command_text) > available:
-                command_text = command
-            if row["line"] and evidence_span >= 24:
-                evidence = _around(row["line"], "[redacted", evidence_span)
-                print(f"      {ui.MUTED}evidence  {ui.RST}"
-                      f"{_cell(evidence, evidence_span, colour=ui.CODE)}  "
-                      f"{ui.MUTED}{command_text}{ui.RST}")
-            elif row["line"]:
-                # Too narrow to sit side by side: stacked, still in the same
-                # two indents, so the block keeps its left edge.
-                print(f"      {ui.MUTED}evidence  {ui.RST}{ui.CODE}"
-                      f"{_around(row['line'], '[redacted', available - 10)}{ui.RST}")
-                print(f"      {ui.MUTED}{command_text}{ui.RST}")
-            else:
-                print(f"      {ui.MUTED}{command_text}{ui.RST}")
+            print("    " + _row(shown, spans, values).rstrip())
+            if row["line"]:
+                print(f"      {ui.MUTED}└ {ui.RST}{ui.CODE}"
+                      f"{_around(row['line'], '[redacted', available - 2)}{ui.RST}")
+        print()
+        _hint(_audit_drill(ordered), inner, indent=4)
         print()
 
     _print_credential_files(touched, inner)
+    _print_destructive(destructive, inner, "proposed")
     _print_audit_footnote(inner, column, descending)
+
+
+def _audit_drill(rows: list[dict]) -> str:
+    """The one command a section's rows are all opened with.
+
+    A group is either turns or checkpoints, never both, so one line covers
+    it: a checkpoint has no turn to pass and is read back by `cs show`.
+    """
+    if all(row.get("source") == "checkpoint" for row in rows):
+        return "cs show <session> — the checkpoint this was written into"
+    return "cs read <session> --turn <turn> — open the exact turn above"
+
+
+# The kind as a column word. The heading says it in full; a table says it in
+# eight characters or it stops being a table.
+_DESTRUCTIVE_WORD = {
+    "history": "history", "data": "data", "infra": "infra",
+    "delete": "delete", "remote-exec": "network", "privilege": "sudo",
+}
+
+
+def _destructive_table(group: list[dict], inner: int) -> None:
+    """One tier's rows, with the command that produced each hanging under it."""
+    columns = [
+        ("active", "last active", "<"), ("session", "session", "<"),
+        ("turn", "turn", ">"), ("seen", "seen", ">"),
+        ("what", "what", "<"), ("summary", "summary", "<"),
+    ]
+    spans = _fit_columns(inner - 2, 19,
+                         [("active", 12), ("seen", 5), ("turn", 5)],
+                         gaps=_extra_gaps(columns))
+    spans.update(session=9, what=8)
+    shown = [spec for spec in columns if spans[spec[0]]]
+    heads = _row(shown, spans)
+    _head_rule(heads)
+    for row in group:
+        tone = _RISK[row["severity"]][0]
+        values = {
+            "active": (_when(row["active"]), ui.MUTED),
+            "session": (row["id"][:8], ui.SKY),
+            "turn": (str(row["turn"]), ""),
+            "seen": (str(row["count"]), tone),
+            "what": (_DESTRUCTIVE_WORD[row["kind"]], tone),
+            "summary": (redact.redact(row["summary"]) or "(untitled)", ""),
+        }
+        print("    " + _row(shown, spans, values).rstrip())
+        if row["line"]:
+            print(f"      {ui.MUTED}└ {ui.RST}{ui.CODE}"
+                  f"{ui._fit(row['line'], ui.cells(heads) - 4)}{ui.RST}")
+    print()
+    _hint("cs read <session> --turn <turn> — open the exact turn above",
+          inner, indent=4)
+    print()
+
+
+def _print_destructive(rows: list[dict], inner: int, basis: str) -> None:
+    """What the sessions took away — removals, rewrites, drops, teardowns.
+
+    The two tiers are printed at two ends of the page rather than together.
+    What a session says it *did* is the most irreversible thing here and
+    leads; what it *offered* is the least certain and the longest, and
+    seventy-four rows of it between the urgent findings and the credentials
+    is the same as burying both.
+
+    Grouped by basis and not by kind: splitting on kind as well would put six
+    one-row tables on the page. The kind is what a row is, so it is a column.
+    """
+    group = [row for row in rows if row["basis"] == basis]
+    if basis == "ran":
+        if not rows:
+            return
+        print(ui.heading(f"Destructive actions · {len(rows)}",
+                         ui.ROSE if group else ui.AMBER, inner))
+        # A finding, not a lesson: it says what these rows are evidence of,
+        # and every reading of them depends on knowing it.
+        _note("Read out of the conversation. The store records file creates "
+              "and edits but no deletion, and no command exit code — so "
+              "nothing here is proof that something ran.", inner, indent=4)
+        print()
+        _tiers([(sum(1 for row in rows if row["basis"] == name),
+                 label, colour, meaning)
+                for name, (colour, label, meaning) in _BASIS.items()],
+               len(rows), inner)
+        print()
+        if not group:
+            print(f"    {ui.MINT}No session reports having carried one out."
+                  f"{ui.RST}")
+            print()
+            _hint("The offered ones are listed at the foot of this report.",
+                  inner, indent=4)
+            print()
+            return
+        print(ui.heading(ui._fit(f"Reported as done · {len(group)}", inner),
+                         _BASIS["ran"][0], inner))
+        _why(_BASIS["ran"][2].capitalize() + ".", inner, indent=4)
+        print()
+        _destructive_table(group, inner)
+        return
+
+    if not group:
+        return
+    print(ui.heading(ui._fit(f"Offered, outcome unknown · {len(group)}", inner),
+                     _BASIS["proposed"][0], inner))
+    _note("Destructive commands the sessions put forward. Nothing records "
+          "whether any of them was run.", inner, indent=4)
+    print()
+    _destructive_table(group, inner)
 
 
 def _print_credential_files(touched: list[dict], inner: int) -> None:
@@ -4535,28 +4922,27 @@ def _print_credential_files(touched: list[dict], inner: int) -> None:
         return
     print(ui.heading(
         ui._fit(f"Credential files touched · {len(touched)} sessions", inner),
-        ui.AMBER,
+        ui.AMBER, inner,
     ))
-    note = ("The store records that these paths were created or edited. It "
-            "does not prove their contents were read; inspect the session "
-            "before deciding whether a credential was exposed.")
-    for line in textwrap.wrap(note, max(30, inner - 6)):
-        print(f"    {ui.MUTED}{line}{ui.RST}")
+    _why("The store records that these paths were created or edited. It "
+         "does not prove their contents were read; inspect the session "
+         "before deciding whether a credential was exposed.", inner, indent=4)
     print()
 
     # Same budget arithmetic as the tables above, so the two rules line up:
     # 10 is the session column and its gap, everything else can be dropped.
-    spans = _fit_columns(inner - 2, 10, [("active", 12), ("files", 5), ("kinds", 24)])
-    spans.update(session=9)
     columns = [
         ("active", "last active", "<"), ("session", "session", "<"),
         ("files", "files", ">"), ("kinds", "what", "<"),
         ("summary", "summary", "<"),
     ]
+    spans = _fit_columns(inner - 2, 10,
+                         [("active", 12), ("files", 5), ("kinds", 24)],
+                         gaps=_extra_gaps(columns))
+    spans.update(session=9)
     shown = [spec for spec in columns if spans[spec[0]]]
-    heads = " ".join(_cell(head, spans[key], align) for key, head, align in shown)
-    print(f"    {ui.MUTED}{heads.rstrip()}{ui.RST}")
-    print(f"    {ui.MUTED}{'─' * len(heads)}{ui.RST}")
+    heads = _row(shown, spans)
+    _head_rule(heads)
     for entry in touched:
         values = {
             "active": (_when(entry["active"]), ui.MUTED),
@@ -4565,11 +4951,11 @@ def _print_credential_files(touched: list[dict], inner: int) -> None:
             "kinds": (_names(list(entry["kinds"]), spans["kinds"]), ui.CODE),
             "summary": (redact.redact(entry["summary"]) or "(untitled)", ""),
         }
-        print("    " + " ".join(
-            _cell(values[key][0], spans[key], align, values[key][1])
-            for key, _head, align in shown
-        ).rstrip())
-        path_width = max(12, len(heads) - len("path  ") - 2)
+        print("    " + _row(shown, spans, values).rstrip())
+        # Hung off the same rail as the audit's evidence, and unlabelled: a
+        # session with four paths under it repeated the word "path" four
+        # times to say what the block already says.
+        path_width = max(12, ui.cells(heads) - 4)
         for path in entry["paths"]:
             shown_path = redact.redact(_short_path(path, entry["cwd"]))
             parts = textwrap.wrap(
@@ -4577,30 +4963,28 @@ def _print_credential_files(touched: list[dict], inner: int) -> None:
                 break_on_hyphens=False,
             ) or [shown_path]
             for index, part in enumerate(parts):
-                label = "path  " if index == 0 else "      "
-                print(f"      {ui.MUTED}{label}{ui.RST}{ui.CODE}{part}{ui.RST}")
+                rail = "└ " if index == 0 else "  "
+                print(f"      {ui.MUTED}{rail}{ui.RST}{ui.CODE}{part}{ui.RST}")
     print()
 
 
 def _print_audit_footnote(inner: int, column: str, descending: bool) -> None:
-    # Wrapped like every other note here: hardcoded line breaks read straight
-    # on the window they were written for and ragged on every other one.
-    footnote = ("Safe display: names, public prefixes and masked evidence only. "
-                "Credential values are never printed by this view.")
-    for line in textwrap.wrap(footnote, max(30, inner)):
-        print(f"  {ui.MUTED}{line}{ui.RST}")
+    _why("Safe display: names, public prefixes and masked evidence only. "
+         "Credential values are never printed by this view.", inner)
     print(_sort_note("audit", column, descending, inner))
+    _why_hint(inner)
     print()
 
 
 def _governance(conn, session_id: str) -> dict:
-    """The three governance readings for one session, gathered while the
-    connection is open so rendering can happen later, like everything else."""
+    """The governance readings for one session, gathered while the connection
+    is open so rendering can happen later, like everything else."""
     return {
         "autonomy": signals.session_autonomy(conn, session_id),
         "handoff": signals.session_handoff(conn, session_id),
         "exposure": signals.exposures(conn, session_id),
         "files": signals.sensitive_files(conn, session_id),
+        "destructive": signals.destructive(conn, session_id),
     }
 
 
@@ -4614,14 +4998,14 @@ def _print_governance(found: dict, session_id: str, cwd: str, width: int) -> Non
     autonomy, handoff, exposure, files = (
         found["autonomy"], found["handoff"], found["exposure"], found["files"]
     )
+    destructive = found.get("destructive", [])
     if (autonomy["verdict"] == "no" and handoff["role"] == "none"
-            and not exposure and not files):
+            and not exposure and not files and not destructive):
         return
 
     print(ui.heading("Risk & continuity", ui.AMBER))
     if autonomy["verdict"] != "no":
-        colour = _VERDICTS[autonomy["verdict"]][0]
-        label = "YOLO" if autonomy["verdict"] == "yes" else "unattended"
+        colour, label = _AUTONOMY[autonomy["verdict"]][:2]
         print(f"    {colour}{label:<11}{ui.RST}{ui.MUTED}{autonomy['why']}{ui.RST}")
     if handoff["role"] != "none":
         docs = ", ".join(_tail(_short_path(d, cwd), 40) for d in handoff["docs"][:2])
@@ -4648,6 +5032,20 @@ def _print_governance(found: dict, session_id: str, cwd: str, width: int) -> Non
               f"{sum(entry['count'] for entry in exposure)} found · "
               f"{' · '.join(places)}"
               f"{' · ' + ', '.join(hints[:3]) if hints else ''}{ui.RST}")
+    if destructive:
+        # Ranked the way the page ranks it: what the session says it did
+        # first, and only then what it offered to do.
+        done = [row for row in destructive if row["basis"] == "ran"]
+        lead = (done or destructive)[0]
+        kinds = ", ".join(dict.fromkeys(
+            _DESTRUCTIVE_WORD[row["kind"]] for row in (done or destructive)
+        ))
+        colour = ui.ROSE if done else ui.AMBER
+        label = "destroyed" if done else "offered"
+        print(f"    {colour}{label:<11}{ui.RST}{ui.MUTED}"
+              f"{kinds} · "
+              f"{'reported done' if done else 'outcome not recorded'} · "
+              f"cs read {session_id[:8]} --turn {lead['turn']}{ui.RST}")
     if files:
         entry = files[0]
         print(f"    {ui.AMBER}{'files':<11}{ui.RST}{ui.MUTED}"
@@ -5270,9 +5668,12 @@ def _render_cost(days: int = 30, column: str = "spend",
                              f"{_thousands(totals['reasoning_tokens'])} reasoning"))
     print(ui.field("cache", f"{_thousands(cache)} read ({cache_pct} of tokens sent)"))
     print(ui.field("time", f"{seconds / 3600:.1f}h of model time · {avg_call:.1f}s per call"))
-    if totals["errors"] or totals["filtered"]:
-        print(ui.field("issues", f"{ui.ROSE}{totals['errors']} errors · "
-                                 f"{totals['filtered']} filtered{ui.RST}"))
+    # No `issues` row. It read "0 errors · 7 filtered" — thirteen events out of
+    # thirty-nine thousand, on a page about where three hundred thousand
+    # credits went, and a content filter is not a spend fact at all. Every
+    # other line in this block is a quantity you can act on. `cs efficiency`
+    # already breaks the same two numbers out by finish reason, under "Calls
+    # that ended badly", which is the page whose question they answer.
     print()
 
     # The timing columns are the first thing a narrow window loses: which
@@ -5667,6 +6068,25 @@ def _step_period(current: int, delta: int) -> int:
 # back — and a stale index does not fail, it quietly files three rows under
 # the wrong heading and nothing in the output looks broken. A label either
 # matches a row or it does not, and _home_groups raises when it does not.
+# What each group is drawn in. The menu was the one place in `cs` where a
+# section heading had no accent: four grey words and a hairline so dark it
+# was not there, over eighteen rows of grey label and dull blue. Every report
+# opens on a coloured bar, and the screen you look at most often opened on
+# nothing.
+#
+# The hues are the palette's own, and they carry the same meaning here as
+# they do in a report rather than being picked to look busy: the product blue
+# for finding things, violet for the counting views (it is what spend is
+# drawn in), amber for the group that exists to tell you something is wrong,
+# and mint for reference material that is simply there.
+_HOME_GROUP_TONE = {
+    "Find": "title",        # 39  — the product blue
+    "Measure": "credits",   # 177 — violet, as spend is everywhere else
+    "Govern": "warn",       # 214 — amber: this group is the bad news
+    "Improve": "credits",
+    "Reference": "active",  # 49  — mint: present, and nothing to answer for
+}
+
 _HOME_GROUP_STARTS: tuple[tuple[str, str], ...] = (
     ("Recent sessions", "Find"),
     ("Repositories", "Measure"),
@@ -6156,11 +6576,15 @@ def _home_tui(screen, state: dict):
                     break
                 kind, value = row
                 if kind == "head":
-                    _addstr(screen, line, 2, value.upper(), width, theme["header"])
-                    # A hairline from the caption to the right edge, the same
-                    # shape the reports use for a section. It used to stop at
-                    # column 24, under the labels, which read as an underline
-                    # on the word rather than as the top of a block.
+                    # `▌CAPTION ─────`, the shape ui.heading draws in every
+                    # report, in the group's own hue — so the menu and the
+                    # page it opens are visibly the same product.
+                    tone = theme[_HOME_GROUP_TONE.get(value, "header")]
+                    _addstr(screen, line, 1, "▌", 1, tone)
+                    _addstr(screen, line, 2, value.upper(), width, tone)
+                    # A hairline from the caption to the right edge. It used
+                    # to stop at column 24, under the labels, which read as an
+                    # underline on the word rather than as the top of a block.
                     rule = width - 4 - len(value)
                     if rule > 2:
                         _addstr(screen, line, 3 + len(value), " " + "─" * (rule - 1),
@@ -6181,7 +6605,7 @@ def _home_tui(screen, state: dict):
                 # shifts nothing: it just leaves a slightly wider gap.
                 _addstr(screen, line, 3, icon, 2, style or theme["summary"])
                 _addstr(screen, line, 6, f"{ui.trunc(label, 16):<16}", 16,
-                        style or theme["summary"])
+                        style or theme["label"])
                 if width > 45:
                     _addstr(screen, line, 24, description, width - 25,
                             style or theme["repo"])

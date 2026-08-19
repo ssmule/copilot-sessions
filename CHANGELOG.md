@@ -7,8 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Security says which credentials are hardcoded**, not just which text is
+  credential-shaped. A finding is called `hardcoded` when the line reads as
+  source (`API_PASSWORD = "…"`, `export TOKEN=…`, a quoted JSON value — never
+  `the token: …` in a sentence) *and* `session_files` shows the session
+  created or edited a file. Neither half alone counts. Hardcoded rows sort
+  half a step above their own severity, so they are not buried under the
+  mentions of the same certainty, and never above a `critical`.
+- **Security reports destructive actions** — files removed, history rewritten,
+  a database dropped, infrastructure torn down, permissions widened, code run
+  from the network. Two tiers, because the store cannot prove any of it:
+  `ran` when the session reports having done it (the command is outside a
+  code fence, with a completion word near it and no negation between), and
+  `proposed` for everything else, including every destructive command you
+  typed yourself. `cs show` carries the same reading for one session.
+  - The honest limit is printed above the table: `session_files.tool_name`
+    records `create` and `edit` and **no deletion**, and no command exit code
+    is stored anywhere, so this is read out of the conversation.
+  - `Reported as done` is the **first** block on the page and is named in the
+    lead; `Offered, outcome unknown` goes to the foot, after the credentials.
+    The two tiers are printed at two ends of the report because the uncertain
+    one is also the longest, and putting seventy-four rows of it between the
+    lead and the credentials buries both.
+
+### Removed
+
+- The `issues` row on **AI spend** (`cs cost`), which read
+  `0 errors · 7 filtered`. It was thirteen events out of thirty-nine
+  thousand on a page about where three hundred thousand credits went, a
+  content-filter trigger is not a spend fact at all, and it was the only
+  reader of two `SUM(CASE WHEN …)` columns in the cost query, which go with
+  it. `cs efficiency` already breaks the same calls out by finish reason
+  under **Calls that ended badly** — the page whose question they answer.
+
 ### Changed
 
+- **The landing screen has colour.** It was the one place in `cs` where a
+  section heading had no accent: four grey captions over eighteen rows of grey
+  label and dull blue description, with a hairline (238) four shades off its
+  own background (234) and therefore invisible. Each group now draws the same
+  `▌` bar `ui.heading` draws in every report, in its own hue — blue for Find,
+  violet for Measure (what spend is drawn in), amber for Govern, mint for
+  Reference — the menu labels are bright and bold rather than the same weight
+  as the sentence explaining them, and the hairlines are visible at 240.
+- The five Govern and Reference pages — Autonomy, Security, Instructions,
+  Hooks and MCP servers — were laid out five different ways and now share one
+  set of components. Section headings all draw their hairline to the same
+  right edge as the rule above them, a table's headings and its rows are
+  built by one function so they cannot be spaced differently, and a
+  right-aligned number no longer sits flush against the word beside it
+  (`steps  per turn summary` read as a sentence, not as three headings).
+- **Autonomy** (`cs yolo`) opens on the verdict rather than on a table, and
+  files each session under its verdict — so the `mark` column and the
+  repeated sentence under every YOLO row are both gone, replaced by a section
+  heading and an `evidence` column. Its inference note moved behind `--why`.
+- **Security** (`cs audit`) no longer prints `inspect cs read <id> --turn <n>`
+  on every row: the session and the turn it needs are already columns of the
+  row above, so the command is named once per section and the masked evidence
+  gets the width it was sharing. The severity counts are drawn as the same
+  tier block Autonomy opens with. The page is titled `Security`, the name of
+  the menu row that opens it, rather than `Security posture` on a wide window
+  and `Security` on a narrow one.
+- **MCP servers** is titled `MCP servers`, matching its menu row. Its name
+  column takes what the longest name needs instead of a flat twenty, `https://`
+  is dropped from the endpoint column, and `from` no longer truncates.
+- **Instructions** keeps `chars` when the window narrows — it is the figure
+  the limit applies to — rather than dropping it first. The two faults get a
+  section of their own, and the remedy is printed once for the group instead
+  of once per file.
+- With nothing configured, **Hooks** and **MCP servers** print where they
+  looked with the scope in its own column and the path wrapped after a `/`
+  rather than truncated mid-name.
 - The transcript (`cs read`, and `t` from any listing) is set differently.
   Each turn drew three full-width rules — its own, and one per speaker — all
   the same weight, plus a lone line of grey underneath carrying the size. A

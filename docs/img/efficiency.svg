@@ -10,7 +10,7 @@
     <text x="269.1" y="66.0" fill="#4e4e4e" textLength="477.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────</text>
     <text x="34.2" y="104.0" fill="#00afff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
     <text x="42.3" y="104.0" fill="#e6e6e6" font-weight="600" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Cache</text>
-    <text x="90.9" y="104.0" fill="#4e4e4e" textLength="639.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────────────────────────</text>
+    <text x="90.9" y="104.0" fill="#4e4e4e" textLength="656.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">─────────────────────────────────────────────────────────────────────────────────</text>
     <text x="34.2" y="123.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">hit rate </text>
     <text x="107.1" y="123.0" fill="#00ffaf" textLength="24.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">88%</text>
     <text x="147.6" y="123.0" fill="#00ffaf" textLength="202.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">████████████████████████▊</text>
@@ -19,7 +19,7 @@
     <text x="107.1" y="142.0" fill="#e6e6e6" textLength="453.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">8.6M read from cache · 0 written to it · 1.2M sent fresh</text>
     <text x="34.2" y="180.0" fill="#5f87ff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
     <text x="42.3" y="180.0" fill="#e6e6e6" font-weight="600" textLength="89.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">First token</text>
-    <text x="139.5" y="180.0" fill="#4e4e4e" textLength="591.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">─────────────────────────────────────────────────────────────────────────</text>
+    <text x="139.5" y="180.0" fill="#4e4e4e" textLength="607.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────────────────────</text>
     <text x="34.2" y="199.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">p50      </text>
     <text x="107.1" y="199.0" fill="#e6e6e6" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">0.7s  </text>
     <text x="155.7" y="199.0" fill="#e6e6e6" opacity="0.55" textLength="218.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">half of calls answer faster</text>
@@ -28,12 +28,12 @@
     <text x="155.7" y="218.0" fill="#e6e6e6" opacity="0.55" textLength="234.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">the slow tail, over 243 calls</text>
     <text x="34.2" y="256.0" fill="#875fff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
     <text x="42.3" y="256.0" fill="#e6e6e6" font-weight="600" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Reasoning</text>
-    <text x="123.3" y="256.0" fill="#4e4e4e" textLength="607.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────────────────────</text>
+    <text x="123.3" y="256.0" fill="#4e4e4e" textLength="623.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">─────────────────────────────────────────────────────────────────────────────</text>
     <text x="34.2" y="275.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">share    </text>
     <text x="107.1" y="275.0" fill="#e6e6e6" textLength="348.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">19% of output tokens were reasoning (43.0k)</text>
     <text x="34.2" y="313.0" fill="#00ffaf" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
     <text x="42.3" y="313.0" fill="#e6e6e6" font-weight="600" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">By model</text>
-    <text x="115.2" y="313.0" fill="#4e4e4e" textLength="615.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">────────────────────────────────────────────────────────────────────────────</text>
+    <text x="115.2" y="313.0" fill="#4e4e4e" textLength="631.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────</text>
     <text x="50.4" y="332.0" fill="#8a8a8a" textLength="680.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">   spend  model                   share                            calls cache first</text>
     <text x="50.4" y="351.0" fill="#d787ff" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    78.2</text>
     <text x="115.2" y="351.0" fill="#e6e6e6" textLength="210.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  claude-opus-4.8         </text>

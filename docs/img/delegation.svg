@@ -18,7 +18,7 @@
     <text x="107.1" y="161.0" fill="#e6e6e6" textLength="56.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">308 AIU</text>
     <text x="34.2" y="199.0" fill="#00afff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
     <text x="42.3" y="199.0" fill="#e6e6e6" font-weight="600" textLength="178.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Who initiated the work</text>
-    <text x="228.6" y="199.0" fill="#4e4e4e" textLength="502.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────</text>
+    <text x="228.6" y="199.0" fill="#4e4e4e" textLength="518.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">────────────────────────────────────────────────────────────────</text>
     <text x="50.4" y="218.0" fill="#8a8a8a" textLength="364.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">who            calls     spend share sessions</text>
     <text x="50.4" y="237.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
     <text x="50.4" y="256.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">you         </text>
@@ -43,7 +43,7 @@
     <text x="34.2" y="351.0" fill="#8a8a8a" textLength="105.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">tool-call id.</text>
     <text x="34.2" y="389.0" fill="#d787ff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
     <text x="42.3" y="389.0" fill="#e6e6e6" font-weight="600" textLength="218.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Sessions that delegate most</text>
-    <text x="269.1" y="389.0" fill="#4e4e4e" textLength="461.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">─────────────────────────────────────────────────────────</text>
+    <text x="269.1" y="389.0" fill="#4e4e4e" textLength="477.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────</text>
     <text x="50.4" y="408.0" fill="#8a8a8a" textLength="251.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">session    calls  tasks summary</text>
     <text x="50.4" y="427.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
     <text x="50.4" y="446.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">00000029 </text>

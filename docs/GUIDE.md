@@ -87,6 +87,15 @@ so the header is lit by a single pass across it rather than raised like a
 shutter. And the wipe is **eased** — brisk at the start, decelerating into
 place, so it arrives rather than stops.
 
+**Each group is drawn in its own hue.** `▌FIND` in the product blue, `▌MEASURE`
+in the violet that spend is drawn in everywhere else, `▌GOVERN` in amber
+because that block exists to tell you something is wrong, and `▌REFERENCE` in
+mint because it is simply there. It is the same accent bar `ui.heading` draws
+in every report, so the menu and the page it opens read as one product — the
+landing screen used to be the single place in `cs` where a section heading had
+no accent at all: four grey words over eighteen rows of grey label, with a
+hairline four shades off the background and therefore invisible.
+
 **The menu is grouped, and the wordmark pays for it.** Five captioned blocks
 are what make nineteen destinations navigable — "governance is the third
 block" is a thing you remember, "Autonomy is the ninth row" is not. So the
@@ -542,18 +551,31 @@ never claims a profile ran.
 ### 📋 `cs instructions` — what the agent is told before you type
 
 ```
+  ── Instructions · 4 on disk ─────────────────────────────────────────────────
+
   project  2 files · 133 chars
+           ~/work/acme/portal
   personal 2 files · 5,522 chars
+           ~/.copilot
   limit    4,000 chars per file before Copilot truncates
 
-  ▌Loaded before your first prompt · 4
-    scope    file                            chars  lines  headings
-    personal AGENTS.md                       5,478    133         1
-    project  .github/copilot-instructions.md    67      8         3
+  ▌Loaded before your first prompt · 4 ────────────────────────────────────────
+    scope    file                             chars  lines  headings
+    ─────────────────────────────────────────────────────────────────────────
+    personal AGENTS.md                        5,478    133         1
+    project  .github/copilot-instructions.md     67      8         3
 
+  ▌Not read as written · 1 ────────────────────────────────────────────────────
     ● personal AGENTS.md
       → 5,478 characters — the last 1,478 are past the limit and are not read.
+
+    Move the scoped rules into .github/instructions/*.instructions.md, which
+    load only when they match.
 ```
+
+The faults get a section of their own rather than floating under the table,
+and the remedy is printed once for the group — a checkout with three long
+files used to repeat the same twenty-word fix three times.
 
 Every other inventory in `cs` reports **configured versus used**. This one
 cannot, and that is the point: nothing *references* an instruction file, because
@@ -587,27 +609,33 @@ session store records none of it. So `cs hooks` reads configuration rather
 than history, and says so.
 
 ```
+  ── Hooks · 29 commands ──────────────────────────────────────────────────────
+
   files    4 declaring 29 commands
   events   13 of the 13 cs knows
   scope    29 personal · 0 from this workspace
   missing  1 point at a script that is not on disk
 
-  ▌When they run · 13
-       3  sessionStart           █████████
-       2  userPromptSubmitted    ██████
-       4  preToolUse             ████████████
+  ▌When they run · 13 ─────────────────────────────────────────────────────────
+        3  sessionStart           █████████
+        2  userPromptSubmitted    ██████
+        4  preToolUse             ████████████
 
-  ▌Scripts that are gone · 1
+  ▌Scripts that are gone · 1 ──────────────────────────────────────────────────
     Copilot will still run these, and the shell will fail.
     /opt/nope/guard.sh
       preToolUse · gone.json
 
-  ▌Every hook · 29
+  ▌Every hook · 29 ────────────────────────────────────────────────────────────
     when                tool     runs                              from
-    ─────────────────────────────────────────────────────────────────────
+    ─────────────────────────────────────────────────────────────────────────
     sessionStart        ·        REFLECT_HARNESS=copilot uv run …  reflect.json
     preToolUse          Bash     npx cc-safety-net hook            safety.json
 ```
+
+With no hooks configured at all, the report says where it looked instead —
+scope first, in its own column, and the path wrapped after a `/` rather than
+elided, because half a path is not somewhere you can put a file.
 
 Events are listed in **lifecycle order**, not by count: a hook list is a
 picture of what happens to a session, and alphabetical is a picture of
@@ -641,17 +669,23 @@ one that reaches **outside the machine**: a process spawned on your box, or an
 HTTP endpoint somewhere else, either of which can be handed the conversation.
 
 ```
+  ── MCP servers · 2 ──────────────────────────────────────────────────────────
+
   files    1 declaring 2 servers
   type     1 local · 1 remote
   scope    2 personal · 0 from this workspace
   tools    2 of 2 expose everything the server offers
 
-  ▌Every server · 2
-    server               transport runs                    tools  sessions
-    ──────────────────────────────────────────────────────────────────────
-    atlassian            http      https://mcp.atlassian…    all         5
-    snyk                 local     snyk mcp -t stdio         all         1
+  ▌Every server · 2 ───────────────────────────────────────────────────────────
+    server     transport runs                      tools  sessions  from
+    ─────────────────────────────────────────────────────────────────────────
+    atlassian  http      mcp.atlassian.com/v1/mcp    all         5  pers:mcp-config
+    snyk       local     snyk mcp -t stdio           all         1  pers:mcp-config
 ```
+
+The name column takes what the longest name needs rather than a flat twenty,
+and `https://` is dropped from every endpoint — eight columns of the same
+eight characters on every row, which were pushing the host off the end.
 
 Local versus remote is the first line, because it is the only one that says
 whether the conversation leaves this machine. Four things it will tell you
@@ -834,18 +868,36 @@ cs yolo --all      # including the supervised ones
 ```
 
 ```
-        6  YOLO         approvals off, on the evidence of the session itself
-       18  unattended   no evidence either way, but it ran unattended
-      396  supervised   prompted often enough to be supervised
+  ── Autonomy · 420 sessions scanned ──────────────────────────────────────────
 
-        session   last active  turns  steps  per turn  summary
-  ──────────────────────────────────────────────────────────────────────────
-  YOLO  9c0d1e2f 03-04 21:31      2    116      58.0  Bulk-rename service modules
-        you turned approvals off in the session
-  auto  3a4b5c6d 03-09 16:09      1     98      98.0  Regenerate API clients
+  ● APPROVALS WERE TURNED OFF
+    24 sessions of 420 ran with nobody approving each step · 6 with approvals
+    off outright
+
+        6  YOLO        ▏········· approvals off, on the evidence of the session
+       18  unattended  ▍········· no evidence either way, but it ran unattended
+      396  supervised  █████████▌ prompted often enough to be supervised
+
+  ▌Approvals off · 6 ──────────────────────────────────────────────────────────
+    You turned approvals off yourself.
+
+    last active  session   turns  steps  per turn  evidence          summary
+    ─────────────────────────────────────────────────────────────────────────
+    03-04 21:31  9c0d1e2f      2    116      58.0  typed in session  Bulk-rename…
+    03-02 11:04  1f2e3d4c      7    136      19.4  --allow-all-tools Port the ad…
+
+  ▌Ran unattended · 18 ────────────────────────────────────────────────────────
+    No flag either way — these ran too far between prompts for anyone to have
+    been watching.
+
+    last active  session   turns  steps  per turn  summary
+    ─────────────────────────────────────────────────────────────────────────
+    03-09 16:09  3a4b5c6d      1     98      98.0  Regenerate API clients
 ```
 
-Two different claims, kept apart on purpose:
+The verdict is the section a session is filed under, so it is stated once per
+group rather than repeated in a column and again on a line of its own beneath
+every row. Two different claims, kept apart on purpose:
 
 - **YOLO** means the session itself shows approvals were off — you passed
   `--allow-all-tools`, or typed `yolo` to turn it on. Only *your* messages
@@ -908,24 +960,31 @@ It looks in three places, because a session can hold one in three ways:
 | Checkpoints | prose the agent saved about the work | a separate table that *outlives the turns* |
 | Sensitive paths | `.env`, `id_rsa`, `.aws/credentials`, `*.pem`, `*.tfstate` | `session_files` proves the path was created or edited, not that its contents were read |
 
+And it answers a fourth question that is not about credentials at all — **what
+did the session take away**. See [Destructive
+actions](#destructive-actions) below.
+
 ```
-  ── Security posture · 420 sessions scanned ──────────────────────────────────
+  ── Security · 420 sessions scanned ──────────────────────────────────────────
 
   ● ACTION REQUIRED
     3 sessions need your action · 6 values pasted by you
-    24 findings across 11 sessions. Rotate confirmed live credentials first;
-    use the inspect command under a row to open its exact turn.
+    24 findings across 11 sessions. Rotate confirmed live credentials first.
 
-  2 CRITICAL confirmed key format · 1 HIGH token or URL login · 21 REVIEW named assignment
+        2  CRITICAL  █▏······· confirmed key format
+        1  HIGH      ▌········ token or URL login
+       21  REVIEW    ████████▊ named assignment
 
-  ▌Immediate action · pasted by you · 3
+  ▌Immediate action · pasted by you · 3 ───────────────────────────────────────
 
-    risk     session   found  turn finding             summary
+    risk     session   found  turn  finding      summary
     ─────────────────────────────────────────────────────────────────────────
-    critical a1b2c3d4      4     3 AKIA…, token        Provision the staging stack
-      evidence  …documented `[redacted:aws-key-id]`…   inspect cs read a1b2c3d4 --turn 3
-    review   e5f6a7b8      4    24 DB_PASSWORD         Wire the reporting database
-      evidence  … `DB_PASSWORD=[redacted]` reported…   inspect cs read e5f6a7b8 --turn 24
+    critical a1b2c3d4      4     3  AKIA…, token Provision the staging stack
+      └ …a documented `[redacted:aws-key-id]` in the bootstrap script…
+    review   e5f6a7b8      4    24  DB_PASSWORD  Wire the reporting database
+      └ … `DB_PASSWORD=[redacted]` reported CLEAN by the scanner…
+
+    cs read <session> --turn <turn> — open the exact turn above
 ```
 
 - **`risk` is certainty, not value.** `cs` can tell how sure it is that
@@ -933,6 +992,17 @@ It looks in three places, because a session can hold one in three ways:
   `critical` is a documented key format and can be nothing else; `review` is a
   value on a password-ish name, which is credible but is sometimes prose.
   Sorted worst-first, so the rows that matter are not buried under guesses.
+- **`hardcoded` is the one exception**, and it is not a certainty at all — it
+  is what was *done* with the value. A finding is called hardcoded when both
+  halves of the evidence are in: the line reads as source rather than prose
+  (`API_PASSWORD = "…"`, `export TOKEN=…`, a quoted JSON value — never
+  `the token: …` in a sentence), **and** `session_files` shows the session
+  created or edited a file. Neither half alone counts: a code snippet in a
+  session that wrote nothing was discussed, and a session that wrote files
+  whose finding is a sentence is a password talked about. A hardcoded row
+  sorts half a step above its own severity, so twenty-two of them are not
+  buried under ninety mentions of the same certainty — but never above a
+  `critical`, which is still the more certain claim.
 - **`Immediate action`** is the group to act on: a secret you pasted is in the
   transcript, and the transcript is on disk in the clear. Rotate it, then find
   where else it went.
@@ -940,17 +1010,85 @@ It looks in three places, because a session can hold one in three ways:
   content, an example, or generated text. Inspect the turn before deciding.
 - **`Saved checkpoints`** is the group people are most surprised by: clearing a
   conversation does not clear its checkpoint. A checkpoint has no turn to open,
-  so its row offers `cs show <id>` instead of a `--turn`.
+  so that section offers `cs show <session>` instead of a `--turn`.
+- **The evidence hangs off the row**, masked, and the command that opens it is
+  named once under each table. It used to ride every row as
+  `inspect cs read <id> --turn <n>` — the same boilerplate forty times over,
+  whose only two variables are already columns of the row above it.
 - The report prints a **name** (`DB_PASSWORD`) or a **public prefix** (`ghp_…`),
   never a value. An audit that printed the secret would have leaked it somewhere
   new.
 
-`cs show` carries the same three readings for a single session, and only when
-there is something to say:
+<a id="destructive-actions"></a>
+#### Destructive actions
+
+Credentials are what a session *left behind*. This is what it **took away** —
+files removed, history rewritten, a database dropped, infrastructure torn
+down, permissions widened, code run straight off the network.
+
+This is the **first** block on the page, and it is named in the lead, because
+it is the only thing here that rotating a value cannot undo:
+
+```
+  ● ACTION REQUIRED
+    9 sessions need your action · 14 values pasted by you · 22 hardcoded in
+    sessions that wrote files · 1 session reports destroying something
+
+  ▌Destructive actions · 75 ───────────────────────────────────────────────────
+    Read out of the conversation. The store records file creates and edits but
+    no deletion, and no command exit code — so nothing here is proof that
+    something ran.
+
+        1  ran       ▏········· the session reports having done it
+       74  proposed  █████████▉ offered in a code block; the store cannot say…
+
+  ▌Reported as done · 1 ───────────────────────────────────────────────────────
+    last active  session    turn  seen  what     summary
+    ─────────────────────────────────────────────────────────────────────────
+    06-28 16:24  c08fec16      1     2  delete   RunOps migration
+      └ git rm -r runops` staged in `integration-control-tower` repo (30 file…
+```
+
+The two tiers are printed at **two ends of the report**, not together. What a
+session says it did leads; what it merely offered goes to the foot, under
+`Offered, outcome unknown`, because it is both the least certain material on
+the page and much the longest — seventy-four rows of "the store cannot say"
+between the urgent findings and the credentials buries both of them.
+
+**The store has no delete event and no exit code.** `session_files.tool_name`
+records `create` and `edit` and nothing else; `forge_trajectory_events`, which
+would carry a command and its exit code first-hand, is read when it has rows
+and is empty in most stores. So a removal can only be found where it was
+written down — in the conversation — and the report says so above the table
+rather than dressing the inference up as a fact. This is the same honesty
+`cs yolo` applies to approval mode.
+
+That is why the split into two tiers matters more than the list itself:
+
+| Basis | What it means | How it is decided |
+|---|---|---|
+| `ran` | the session reports having done it | the command is **not** inside a ``` block, and a completion word (`deleted`, `staged`, `✓`) sits within a few dozen characters of it, with no negation in between |
+| `proposed` | offered; the outcome is not recorded anywhere | everything else — including every destructive command in a fenced block, and every one **you** typed, because an instruction is not an outcome however you phrase it |
+
+The proximity window and the negation guard are what make the first tier worth
+reading. "their blobs were committed in earlier commits, so `git filter-repo`
++ force-push is destructive and I didn't do it" carries a completion word on
+the same line as the command it explicitly declines to run; a marker anywhere
+on the line would have called that done.
+
+The kinds, worst first: `history` (force-push, `reset --hard`, `filter-repo`),
+`data` (`DROP`, `TRUNCATE`, an unqualified `DELETE FROM`), `infra`
+(`terraform destroy`, `kubectl delete`, `docker volume rm`), `delete`
+(`rm -rf`, `git rm`, `find -delete`, `shutil.rmtree`), `network`
+(`curl … | sh`), `sudo` (`chmod 777`, `chown -R`, `sudo`).
+
+`cs show` carries the same readings for a single session, and only when there
+is something to say:
 
 ```
   ▌Risk & continuity
     YOLO       you passed --allow-all-tools
+    destroyed  delete, history · reported done · cs read c08fec16 --turn 1
     secrets    4 found · you typed it · AKIA…, token
 ```
 

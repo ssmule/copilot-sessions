@@ -161,6 +161,41 @@ def _seed(base: Path) -> None:
     conn.execute(
         "INSERT INTO search_index (content, session_id, source_type)"
         " VALUES (?,?,'turn')", (f"here is the key: {secret}", sid))
+
+    # One session that wrote a credential into a file it created, so `cs audit`
+    # has a `hardcoded` row and not only a `review` one — the two halves of
+    # that verdict are a code-shaped line and a session_files record, and the
+    # picture is worth nothing if it only ever shows one of them.
+    sid = "e5f6a7b8-1111-4111-8111-000000000098"
+    conn.execute(
+        "INSERT INTO sessions VALUES (?,?,?,'github','main',?,"
+        "datetime('now','-3 days'),datetime('now','-3 days'))",
+        (sid, "/work/webshop", "acme/webshop", "Wire the reporting database"))
+    conn.execute(
+        "INSERT INTO turns (session_id, turn_index, user_message,"
+        " assistant_response, timestamp) VALUES (?,24,?,?,datetime('now'))",
+        (sid, "add the reporting connection",
+         'Written to `settings.py`:\n\nDB_PASSWORD = "s3cr3t-staging-pw"\n'))
+    conn.execute(
+        "INSERT INTO session_files (session_id, file_path, tool_name)"
+        " VALUES (?,?,'create')", (sid, "/work/webshop/settings.py"))
+
+    # …and one that reports having removed a tree and forced a push, so the
+    # destructive block shows both of its tiers rather than only the quiet one.
+    sid = "9c0d1e2f-1111-4111-8111-000000000097"
+    conn.execute(
+        "INSERT INTO sessions VALUES (?,?,?,'github','main',?,"
+        "datetime('now','-1 days'),datetime('now','-1 days'))",
+        (sid, "/work/infra", "acme/infra", "Retire the legacy runner"))
+    conn.executemany(
+        "INSERT INTO turns (session_id, turn_index, user_message,"
+        " assistant_response, timestamp) VALUES (?,?,?,?,datetime('now'))",
+        [(sid, 2, "drop the old runner",
+          "Deleted the tree with `rm -rf legacy-runner/` \u2713 and "
+          "`git push --force` to drop the bad commit \u2713"),
+         (sid, 5, "and the cache?",
+          "You could clear it yourself:\n```bash\nrm -rf ~/.cache/runner\n```")],
+    )
     conn.commit()
     conn.close()
 
@@ -196,7 +231,12 @@ def capture(argv: list[str], home: Path, cwd: Path, columns: int = 92) -> str:
         "COPILOT_HOME": str(home),
         "COLUMNS": str(columns), "LINES": "60",
         "TERM": "xterm-256color",
-        "CS_PAGER": "cat",
+        # `PAGER`, which is the variable `_page` actually reads. This said
+        # `CS_PAGER`, which nothing in the package has ever honoured — so a
+        # report longer than LINES spawned `less`, which found the pty on
+        # /dev/tty and sat there waiting for a keypress that never came.
+        # Every screenshot of a long report depended on that not happening.
+        "PAGER": "cat",
         "PYTHONPATH": str(ROOT),
     }
     master, slave = pty.openpty()

@@ -1361,7 +1361,7 @@ def cost_totals(conn: sqlite3.Connection, days: int) -> dict:
         return {
             "nano_aiu": row[0], "calls": row[1], "sessions": row[2],
             "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0,
-            "reasoning_tokens": 0, "duration_ms": 0, "errors": 0, "filtered": 0,
+            "reasoning_tokens": 0, "duration_ms": 0,
         }
     row = conn.execute(
         f"""SELECT COALESCE(SUM(total_nano_aiu), 0),
@@ -1371,15 +1371,13 @@ def cost_totals(conn: sqlite3.Connection, days: int) -> dict:
                   COALESCE(SUM(output_tokens), 0),
                   COALESCE(SUM(cache_read_tokens), 0),
                   COALESCE(SUM(reasoning_tokens), 0),
-                  COALESCE(SUM(duration_ms), 0),
-                  SUM(CASE WHEN finish_reason = 'error' THEN 1 ELSE 0 END),
-                  SUM(CASE WHEN content_filter_triggered THEN 1 ELSE 0 END)
+                  COALESCE(SUM(duration_ms), 0)
             FROM assistant_usage_events {where}""",
         args,
     ).fetchone()
     keys = (
         "nano_aiu", "calls", "sessions", "input_tokens", "output_tokens",
-        "cache_read_tokens", "reasoning_tokens", "duration_ms", "errors", "filtered",
+        "cache_read_tokens", "reasoning_tokens", "duration_ms",
     )
     return dict(zip(keys, row, strict=True))
 

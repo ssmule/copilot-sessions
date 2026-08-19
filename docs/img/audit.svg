@@ -1,42 +1,121 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="765" height="526" viewBox="0 0 765 526" role="img" aria-label="cs audit">
-  <rect width="765" height="526" rx="10" fill="#14161c"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="765" height="1248" viewBox="0 0 765 1248" role="img" aria-label="cs audit">
+  <rect width="765" height="1248" rx="10" fill="#14161c"/>
   <rect width="765" height="34.0" rx="10" fill="#1d2029"/>
   <rect y="24.0" width="765" height="10" fill="#1d2029"/>
   <circle cx="22" cy="17" r="6" fill="#ff5f56"/><circle cx="40" cy="17" r="6" fill="#ffbd2e"/><circle cx="58" cy="17" r="6" fill="#27c93f"/>
   <text x="382" y="22" fill="#8b93a7" font-size="12" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">cs audit</text>
   <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="13.5">
     <text x="34.2" y="66.0" fill="#00afff" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──</text>
-    <text x="58.5" y="66.0" fill="#e6e6e6" font-weight="600" textLength="307.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Security posture · 43 sessions scanned</text>
-    <text x="374.4" y="66.0" fill="#4e4e4e" textLength="372.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────</text>
+    <text x="58.5" y="66.0" fill="#e6e6e6" font-weight="600" textLength="243.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Security · 45 sessions scanned</text>
+    <text x="309.6" y="66.0" fill="#4e4e4e" textLength="437.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────</text>
     <text x="34.2" y="104.0" fill="#ff5f87" font-weight="600" textLength="137.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">● ACTION REQUIRED</text>
-    <text x="50.4" y="123.0" fill="#e6e6e6" font-weight="600" textLength="413.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1 session needs your action · 1 value pasted by you</text>
-    <text x="50.4" y="142.0" fill="#8a8a8a" textLength="680.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1 finding across 1 session. Rotate confirmed live credentials first; use the inspect</text>
-    <text x="50.4" y="161.0" fill="#8a8a8a" textLength="348.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">command under a row to open its exact turn.</text>
-    <text x="34.2" y="199.0" fill="#ff5f87" textLength="105.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  1  CRITICAL</text>
-    <text x="155.7" y="199.0" fill="#8a8a8a" textLength="162.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">confirmed key format</text>
-    <text x="34.2" y="218.0" fill="#ffaf00" textLength="105.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  0  HIGH    </text>
-    <text x="155.7" y="218.0" fill="#8a8a8a" textLength="145.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">token or URL login</text>
-    <text x="34.2" y="237.0" fill="#8a8a8a" textLength="105.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  0  REVIEW  </text>
-    <text x="155.7" y="237.0" fill="#8a8a8a" textLength="129.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">named assignment</text>
-    <text x="34.2" y="275.0" fill="#ff5f87" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
-    <text x="42.3" y="275.0" fill="#e6e6e6" font-weight="600" textLength="291.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Immediate action · pasted by you · 1</text>
-    <text x="50.4" y="294.0" fill="#8a8a8a" textLength="623.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">These values are stored in session transcripts. Rotate live credentials, then</text>
-    <text x="50.4" y="313.0" fill="#8a8a8a" textLength="291.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">remove or expire every copied value.</text>
-    <text x="50.4" y="351.0" fill="#00afff" font-weight="600" textLength="32.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">risk</text>
-    <text x="82.8" y="351.0" fill="#8a8a8a" textLength="461.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     session   found  turn finding                summary</text>
-    <text x="50.4" y="370.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
-    <text x="50.4" y="389.0" fill="#ff5f87" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">critical</text>
-    <text x="123.3" y="389.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">a1b2c3d4 </text>
-    <text x="204.3" y="389.0" fill="#ff5f87" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
-    <text x="244.8" y="389.0" fill="#e6e6e6" textLength="56.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     3 </text>
-    <text x="301.5" y="389.0" fill="#d7af87" textLength="178.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">AKIA…                 </text>
-    <text x="479.7" y="389.0" fill="#e6e6e6" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Provision the staging stack</text>
-    <text x="66.6" y="408.0" fill="#8a8a8a" textLength="81.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">evidence  </text>
-    <text x="147.6" y="408.0" fill="#d7af87" textLength="315.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">here is the key: [redacted:aws-key-id] </text>
-    <text x="479.7" y="408.0" fill="#8a8a8a" textLength="267.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">inspect cs read a1b2c3d4 --turn 3</text>
-    <text x="34.2" y="446.0" fill="#8a8a8a" textLength="680.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Safe display: names, public prefixes and masked evidence only. Credential values are</text>
-    <text x="34.2" y="465.0" fill="#8a8a8a" textLength="218.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">never printed by this view.</text>
-    <text x="34.2" y="484.0" fill="#8a8a8a" textLength="591.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Sorted by risk ↓  ·  --sort risk|found|active|turn|summary [--asc|--desc]</text>
-    <text x="34.2" y="503.0" fill="#8a8a8a" textLength="251.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">←/→ and s re-sort in the reader</text>
+    <text x="50.4" y="123.0" fill="#e6e6e6" font-weight="600" textLength="672.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1 session needs your action · 1 value pasted by you · 1 hardcoded in a session that</text>
+    <text x="50.4" y="142.0" fill="#e6e6e6" font-weight="600" textLength="421.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">wrote files · 1 session reports destroying something</text>
+    <text x="50.4" y="161.0" fill="#8a8a8a" textLength="567.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">2 findings across 2 sessions. Rotate confirmed live credentials first.</text>
+    <text x="34.2" y="199.0" fill="#ff5f87" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="199.0" fill="#e6e6e6" font-weight="600" textLength="186.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Destructive actions · 3</text>
+    <text x="236.7" y="199.0" fill="#4e4e4e" textLength="510.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="218.0" fill="#8a8a8a" textLength="623.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Read out of the conversation. The store records file creates and edits but no</text>
+    <text x="50.4" y="237.0" fill="#8a8a8a" textLength="656.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">deletion, and no command exit code — so nothing here is proof that something ran.</text>
+    <text x="50.4" y="275.0" fill="#ff5f87" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    2</text>
+    <text x="107.1" y="275.0" fill="#ff5f87" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">ran      </text>
+    <text x="188.1" y="275.0" fill="#ff5f87" textLength="56.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">██████▋</text>
+    <text x="244.8" y="275.0" fill="#4e4e4e" textLength="24.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">···</text>
+    <text x="277.2" y="275.0" fill="#8a8a8a" textLength="275.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">the session reports having done it</text>
+    <text x="50.4" y="294.0" fill="#ffaf00" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="107.1" y="294.0" fill="#ffaf00" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">proposed </text>
+    <text x="188.1" y="294.0" fill="#ffaf00" textLength="32.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">███▍</text>
+    <text x="220.5" y="294.0" fill="#4e4e4e" textLength="48.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">······</text>
+    <text x="277.2" y="294.0" fill="#8a8a8a" textLength="445.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">offered in a code block; the store cannot say if it ran</text>
+    <text x="34.2" y="332.0" fill="#ff5f87" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="332.0" fill="#e6e6e6" font-weight="600" textLength="162.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Reported as done · 2</text>
+    <text x="212.4" y="332.0" fill="#4e4e4e" textLength="534.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="370.0" fill="#8a8a8a" textLength="421.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">last active  session    turn  seen  what     summary</text>
+    <text x="50.4" y="389.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="408.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">08-18 10:11 </text>
+    <text x="155.7" y="408.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">9c0d1e2f </text>
+    <text x="228.6" y="408.0" fill="#e6e6e6" textLength="56.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     2 </text>
+    <text x="285.3" y="408.0" fill="#ff5f87" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="342.0" y="408.0" fill="#ff5f87" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">history </text>
+    <text x="406.8" y="408.0" fill="#e6e6e6" textLength="202.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Retire the legacy runner</text>
+    <text x="66.6" y="427.0" fill="#8a8a8a" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">└ </text>
+    <text x="82.8" y="427.0" fill="#d7af87" textLength="340.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">git push --force` to drop the bad commit ✓</text>
+    <text x="50.4" y="446.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">08-18 10:11 </text>
+    <text x="155.7" y="446.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">9c0d1e2f </text>
+    <text x="228.6" y="446.0" fill="#e6e6e6" textLength="56.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     2 </text>
+    <text x="285.3" y="446.0" fill="#ffaf00" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="342.0" y="446.0" fill="#ffaf00" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">delete  </text>
+    <text x="406.8" y="446.0" fill="#e6e6e6" textLength="202.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Retire the legacy runner</text>
+    <text x="66.6" y="465.0" fill="#8a8a8a" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">└ </text>
+    <text x="82.8" y="465.0" fill="#d7af87" textLength="583.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">rm -rf legacy-runner/` ✓ and `git push --force` to drop the bad commit ✓</text>
+    <text x="50.4" y="503.0" fill="#8a8a8a" textLength="477.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">cs read &lt;session&gt; --turn &lt;turn&gt; — open the exact turn above</text>
+    <text x="34.2" y="541.0" fill="#00afff" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="541.0" fill="#e6e6e6" font-weight="600" textLength="121.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Credentials · 2</text>
+    <text x="171.9" y="541.0" fill="#4e4e4e" textLength="575.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">───────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="560.0" fill="#ff5f87" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="107.1" y="560.0" fill="#ff5f87" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">CRITICAL </text>
+    <text x="188.1" y="560.0" fill="#ff5f87" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">█████</text>
+    <text x="228.6" y="560.0" fill="#4e4e4e" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">·····</text>
+    <text x="277.2" y="560.0" fill="#8a8a8a" textLength="162.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">confirmed key format</text>
+    <text x="50.4" y="579.0" fill="#ffaf00" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    0</text>
+    <text x="107.1" y="579.0" fill="#ffaf00" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">HIGH     </text>
+    <text x="188.1" y="579.0" fill="#4e4e4e" textLength="81.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">··········</text>
+    <text x="277.2" y="579.0" fill="#8a8a8a" textLength="145.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">token or URL login</text>
+    <text x="50.4" y="598.0" fill="#8a8a8a" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="107.1" y="598.0" fill="#8a8a8a" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">REVIEW   </text>
+    <text x="188.1" y="598.0" fill="#8a8a8a" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">█████</text>
+    <text x="228.6" y="598.0" fill="#4e4e4e" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">·····</text>
+    <text x="277.2" y="598.0" fill="#8a8a8a" textLength="129.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">named assignment</text>
+    <text x="34.2" y="636.0" fill="#ff5f87" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="636.0" fill="#e6e6e6" font-weight="600" textLength="291.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Immediate action · pasted by you · 1</text>
+    <text x="342.0" y="636.0" fill="#4e4e4e" textLength="405.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────</text>
+    <text x="50.4" y="674.0" fill="#00afff" font-weight="600" textLength="32.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">risk</text>
+    <text x="82.8" y="674.0" fill="#8a8a8a" textLength="494.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">      last active  session   found  turn  finding     summary</text>
+    <text x="50.4" y="693.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="712.0" fill="#ff5f87" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">critical </text>
+    <text x="131.4" y="712.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">08-17 10:11 </text>
+    <text x="236.7" y="712.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">a1b2c3d4 </text>
+    <text x="317.7" y="712.0" fill="#ff5f87" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="358.2" y="712.0" fill="#e6e6e6" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     3  </text>
+    <text x="423.0" y="712.0" fill="#d7af87" textLength="89.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">AKIA…      </text>
+    <text x="512.1" y="712.0" fill="#e6e6e6" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Provision the staging stack</text>
+    <text x="66.6" y="731.0" fill="#8a8a8a" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">└ </text>
+    <text x="82.8" y="731.0" fill="#d7af87" textLength="307.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">here is the key: [redacted:aws-key-id]</text>
+    <text x="50.4" y="769.0" fill="#8a8a8a" textLength="477.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">cs read &lt;session&gt; --turn &lt;turn&gt; — open the exact turn above</text>
+    <text x="34.2" y="807.0" fill="#ffaf00" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="807.0" fill="#e6e6e6" font-weight="600" textLength="299.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Assistant output · review context · 1</text>
+    <text x="350.1" y="807.0" fill="#4e4e4e" textLength="396.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">─────────────────────────────────────────────────</text>
+    <text x="50.4" y="845.0" fill="#00afff" font-weight="600" textLength="32.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">risk</text>
+    <text x="82.8" y="845.0" fill="#8a8a8a" textLength="494.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">      last active  session   found  turn  finding     summary</text>
+    <text x="50.4" y="864.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="883.0" fill="#ff5f87" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">hardcoded</text>
+    <text x="131.4" y="883.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">08-16 10:11 </text>
+    <text x="236.7" y="883.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">e5f6a7b8 </text>
+    <text x="317.7" y="883.0" fill="#ffaf00" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="358.2" y="883.0" fill="#e6e6e6" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    24  </text>
+    <text x="423.0" y="883.0" fill="#d7af87" textLength="89.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">DB_PASSWORD</text>
+    <text x="512.1" y="883.0" fill="#e6e6e6" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Wire the reporting database</text>
+    <text x="66.6" y="902.0" fill="#8a8a8a" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">└ </text>
+    <text x="82.8" y="902.0" fill="#d7af87" textLength="210.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">DB_PASSWORD = &quot;[redacted]&quot;</text>
+    <text x="50.4" y="940.0" fill="#8a8a8a" textLength="477.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">cs read &lt;session&gt; --turn &lt;turn&gt; — open the exact turn above</text>
+    <text x="34.2" y="978.0" fill="#ffaf00" textLength="8.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▌</text>
+    <text x="42.3" y="978.0" fill="#e6e6e6" font-weight="600" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Offered, outcome unknown · 1</text>
+    <text x="277.2" y="978.0" fill="#4e4e4e" textLength="469.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="997.0" fill="#8a8a8a" textLength="664.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Destructive commands the sessions put forward. Nothing records whether any of them</text>
+    <text x="50.4" y="1016.0" fill="#8a8a8a" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">was run.</text>
+    <text x="50.4" y="1054.0" fill="#8a8a8a" textLength="421.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">last active  session    turn  seen  what     summary</text>
+    <text x="50.4" y="1073.0" fill="#8a8a8a" textLength="696.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">──────────────────────────────────────────────────────────────────────────────────────</text>
+    <text x="50.4" y="1092.0" fill="#8a8a8a" textLength="97.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">08-18 10:11 </text>
+    <text x="155.7" y="1092.0" fill="#5f87ff" textLength="72.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">9c0d1e2f </text>
+    <text x="228.6" y="1092.0" fill="#e6e6e6" textLength="56.7" lengthAdjust="spacingAndGlyphs" xml:space="preserve">     5 </text>
+    <text x="285.3" y="1092.0" fill="#ffaf00" textLength="40.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve">    1</text>
+    <text x="342.0" y="1092.0" fill="#ffaf00" textLength="64.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">delete  </text>
+    <text x="406.8" y="1092.0" fill="#e6e6e6" textLength="202.5" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Retire the legacy runner</text>
+    <text x="66.6" y="1111.0" fill="#8a8a8a" textLength="16.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">└ </text>
+    <text x="82.8" y="1111.0" fill="#d7af87" textLength="178.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">rm -rf ~/.cache/runner</text>
+    <text x="50.4" y="1149.0" fill="#8a8a8a" textLength="477.9" lengthAdjust="spacingAndGlyphs" xml:space="preserve">cs read &lt;session&gt; --turn &lt;turn&gt; — open the exact turn above</text>
+    <text x="34.2" y="1187.0" fill="#8a8a8a" textLength="591.3" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Sorted by risk ↓  ·  --sort risk|found|active|turn|summary [--asc|--desc]</text>
+    <text x="34.2" y="1206.0" fill="#8a8a8a" textLength="251.1" lengthAdjust="spacingAndGlyphs" xml:space="preserve">←/→ and s re-sort in the reader</text>
+    <text x="34.2" y="1225.0" fill="#8a8a8a" textLength="259.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">--why  explains how to read this</text>
   </g>
 </svg>

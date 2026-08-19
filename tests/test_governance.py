@@ -7,7 +7,18 @@ import re
 import sqlite3
 from pathlib import Path
 
-from support import CALM, CHILD, LEAK, PARENT, UNATTENDED, StoreTest, _add_governance_rows
+from support import (
+    CALM,
+    CHILD,
+    HARDCODED,
+    LEAK,
+    OFFERED,
+    PARENT,
+    UNATTENDED,
+    WIPED,
+    StoreTest,
+    _add_governance_rows,
+)
 
 
 class GovernanceTest(StoreTest):
@@ -22,7 +33,11 @@ class GovernanceTest(StoreTest):
         code, out = self._run("yolo")
         self.assertEqual(code, 0)
         self.assertIn("Try it unsupervised", out)
-        self.assertIn("you turned approvals off in the session", out)
+        # The verdict is the section it is filed under, and the evidence is a
+        # column on the row — it used to be a sentence repeated on a
+        # continuation line under every one of them.
+        self.assertIn("Approvals off", out)
+        self.assertIn("typed in session", out)
 
     def test_yolo_does_not_flag_a_session_that_only_discusses_it(self):
         _, out = self._run("yolo")
@@ -40,8 +55,13 @@ class GovernanceTest(StoreTest):
         self.assertIn("A supervised session", everything)
 
     def test_yolo_says_what_it_can_and_cannot_know(self):
+        """The lesson is a lesson, so it waits to be asked for — and the
+        report says, once, that there is something to ask for."""
         _, out = self._run("yolo")
-        self.assertIn("store records no approval mode", out)
+        self.assertNotIn("store records no approval mode", out)
+        self.assertIn("--why", out)
+        _, asked = self._run("yolo", "--why")
+        self.assertIn("store records no approval mode", asked)
 
     def test_yolo_rejects_unknown_options(self):
         code, _ = self._run("yolo", "--everything")
@@ -123,6 +143,7 @@ class GovernanceTest(StoreTest):
             "coach": lambda: cli._render_coach(3650),
             "rhythm": lambda: cli._render_rhythm(3650),
             "context": cli._render_context,
+            "instructions": cli._render_instructions,
             "hooks": cli._render_hooks,
             "mcp": cli._render_mcp,
             "skills": lambda: cli._render_assets("skills", 25),
@@ -209,8 +230,11 @@ class GovernanceTest(StoreTest):
         row = next(line for line in out.split("\n") if "66666666" in line)
         match = _re.search(r"66666666\s+\d+\s+(\d+)", row)
         self.assertIsNotNone(match, f"no turn on the row: {row!r}")
-        turn = match.group(1)
-        self.assertIn(f"inspect cs read 66666666 --turn {turn}", out)
+        # The command that opens it is named once under the table, not
+        # forty times down the right-hand side: the session and the turn it
+        # needs are already columns of the row above.
+        self.assertIn("cs read <session> --turn <turn>", out)
+        self.assertNotIn("inspect cs read", out)
 
         import os as _os
         from unittest import mock
@@ -241,7 +265,9 @@ class GovernanceTest(StoreTest):
         """The block was headed 'values' and counted sessions, understating it:
         8 sessions held 15 values, 29 held 81."""
         _, out = self._run("audit")
-        self.assertIn("1 finding across 1 session", out)
+        # Two findings in two sessions — one pasted into a prompt, one written
+        # as source — and the lead counts the values, not the sessions.
+        self.assertIn("2 findings across 2 sessions", out)
         self.assertIn("1 value pasted by you", out)
 
     def test_the_audit_attributes_each_side_separately(self):
@@ -273,7 +299,7 @@ class GovernanceTest(StoreTest):
         import cs.cli as cli
 
         _, out = self._run("audit")
-        self.assertIn("Security posture", out)
+        self.assertIn("Security · ", out)
         self.assertIn("ACTION REQUIRED", out)
         self.assertIn("Immediate action · pasted by you", out)
         self.assertLess(out.index("ACTION REQUIRED"), out.index("Immediate action"))
@@ -321,12 +347,13 @@ class GovernanceTest(StoreTest):
         self.assertEqual(cli._names(["ATLASSIAN_API_TOKEN"], 8), "ATLASSI…")
         self.assertEqual(cli._names([], 20), "")
 
-    def test_the_audit_lines_up_the_evidence_and_the_command(self):
-        """The row's second line is two columns, not a trailing sentence.
+    def test_the_audit_hangs_the_evidence_under_its_own_row(self):
+        """The row's second line is the evidence and nothing else.
 
-        `evidence … · inspect cs read …` put the same boilerplate at a
-        different column on every row, so the table lost its right edge and
-        the commands could not be scanned down.
+        It used to carry `inspect cs read <id> --turn <n>` as well — the same
+        boilerplate on every row, whose only two variables are columns of the
+        row above it, spending a third of the window to repeat them. What is
+        left hangs off a rail at one indent, inside the table's right edge.
         """
         import shutil
         from unittest import mock
@@ -356,13 +383,11 @@ class GovernanceTest(StoreTest):
         lines = [_re.sub(r"\x1b\[[0-9;]*m", "", line) for line in out.splitlines()]
         divider = next(line for line in lines
                        if line.strip() and set(line.strip()) == {"─"})
-        commands = [line for line in lines if "inspect cs read" in line]
-        self.assertGreater(len(commands), 1, "need two rows to compare")
-        starts = {line.index("inspect cs read") for line in commands}
-        self.assertEqual(len(starts), 1, f"commands start in {len(starts)} places")
-        for line in commands:
-            self.assertTrue(line.startswith("      evidence  "), line)
+        evidence = [line for line in lines if line.startswith("      └ ")]
+        self.assertGreater(len(evidence), 1, "need two rows to compare")
+        for line in evidence:
             self.assertLessEqual(len(line), len(divider))
+        self.assertNotIn("inspect cs read", out)
 
     def test_the_audit_puts_each_count_beside_what_it_means(self):
         """Three columns of label over three columns of meaning made you count
@@ -376,13 +401,149 @@ class GovernanceTest(StoreTest):
         size = os.terminal_size((159, 40))
         with mock.patch.object(shutil, "get_terminal_size", return_value=size):
             wide = cli._capture(lambda: cli._render_audit(None))
-        self.assertRegex(wide, r"\d+ CRITICAL confirmed key format\b")
-        self.assertRegex(wide, r"\d+ HIGH token or URL login\b")
+        self.assertRegex(wide, r"\d+\s+CRITICAL\s+.*confirmed key format")
+        self.assertRegex(wide, r"\d+\s+HIGH\s+.*token or URL login")
         size = os.terminal_size((80, 40))
         with mock.patch.object(shutil, "get_terminal_size", return_value=size):
             narrow = cli._capture(lambda: cli._render_audit(None))
-        self.assertRegex(narrow, r"CRITICAL\s+confirmed key format\n")
-        self.assertRegex(narrow, r"HIGH\s+token or URL login\n")
+        self.assertRegex(narrow, r"CRITICAL\s+.*confirmed key format")
+        self.assertRegex(narrow, r"HIGH\s+.*token or URL login")
+
+    # ── Hardcoded credentials ────────────────────────────────────────
+    def test_a_credential_written_as_source_is_called_hardcoded(self):
+        """`review` grades certainty, not what was done with the value.
+
+        A password-shaped assignment in a session that wrote a file is a
+        different problem from one quoted in a sentence, and the page said
+        `review` for both.
+        """
+        _, out = self._run("audit")
+        row = next(line for line in out.split("\n") if HARDCODED[:8] in line)
+        self.assertIn("hardcoded", row)
+        # …and the one only mentioned in a prompt keeps its plain label.
+        pasted = next(line for line in out.split("\n") if LEAK[:8] in line)
+        self.assertIn("review", pasted)
+        self.assertNotIn("hardcoded", pasted)
+        # The lead wraps to the window, so compare on flattened whitespace.
+        self.assertIn("1 hardcoded in a session that wrote files",
+                      " ".join(out.split()))
+
+    def test_hardcoded_needs_both_halves_of_the_evidence(self):
+        """Code shape alone is a snippet discussed; a file written alone is a
+        password talked about. Neither is a credential in a file."""
+        from cs import db, signals
+
+        conn = db.connect()
+        found = {(r["id"], r["side"]): r for r in signals.exposures(conn)}
+        conn.close()
+        self.assertTrue(found[(HARDCODED, "agent")]["hardcoded"])
+        self.assertFalse(found[(LEAK, "you")]["hardcoded"])
+
+    def test_the_code_shape_test_tells_source_from_prose(self):
+        from cs import signals
+
+        for line in ('api_key="[redacted]",', "export TOKEN=[redacted]",
+                     'password: "[redacted]"', "DB_PASSWORD=[redacted] ok"):
+            self.assertTrue(signals._hardcoded(line), line)
+        for line in ("Slack webhook token: [redacted]", "- Password: [redacted]",
+                     "1. Create a token: [redacted]",
+                     "the current `az` token = [redacted]"):
+            self.assertFalse(signals._hardcoded(line), line)
+
+    # ── Destructive activity ─────────────────────────────────────────
+    def test_the_audit_separates_a_removal_done_from_one_offered(self):
+        """The store records creates and edits and no deletion at all, so
+        both of these are read out of the transcript — and the difference
+        between them is the whole value of reading it."""
+        _, out = self._run("audit")
+        self.assertIn("Destructive actions", out)
+        self.assertIn("Reported as done", out)
+        self.assertIn("Offered, outcome unknown", out)
+        done = out.index("Reported as done")
+        offered = out.index("Offered, outcome unknown")
+        self.assertIn(WIPED[:8], out[done:offered])
+        self.assertIn(OFFERED[:8], out[offered:])
+        # The certain tier opens the report and the uncertain one closes it,
+        # with the credentials in between: seventy-four rows of "the store
+        # cannot say" between the urgent findings buries both of them.
+        self.assertLess(done, out.index("Credentials ·"), "the done tier leads")
+        self.assertLess(out.index("Credentials ·"), offered,
+                        "the offered tier goes to the foot")
+        # …and it is named in the lead, so it is seen without scrolling.
+        self.assertIn("1 session reports destroying something",
+                      " ".join(out.split()))
+
+    def test_a_command_inside_a_code_block_is_never_reported_as_run(self):
+        from cs import db, signals
+
+        conn = db.connect()
+        rows = signals.destructive(conn)
+        conn.close()
+        by_session = {(r["id"], r["kind"]): r for r in rows}
+        self.assertEqual(by_session[(OFFERED, "delete")]["basis"], "proposed")
+        self.assertEqual(by_session[(WIPED, "delete")]["basis"], "ran")
+        self.assertEqual(by_session[(WIPED, "history")]["basis"], "ran")
+
+    def test_a_completion_word_about_something_else_does_not_count(self):
+        """"their blobs were committed in earlier commits" sat on the same
+        line as a `git filter-repo` the agent went on to say it did not run,
+        and the whole line was read as a report of having run it."""
+        from cs import signals
+
+        text = ("blobs were committed in earlier commits, so `git filter-repo` "
+                "+ force-push is destructive and I didn't do it")
+        at = text.index("git filter-repo")
+        self.assertEqual(signals._basis(text, at), "proposed")
+        self.assertEqual(
+            signals._basis("Deleted the tree with `rm -rf build` ✓",
+                           len("Deleted the tree with `")),
+            "ran",
+        )
+
+    def test_the_completion_window_does_not_cut_a_word_in_half(self):
+        """The lookback is a fixed number of characters, so it landed inside
+        the very word it was looking for: "Deleted the folder with `rm -rf x`"
+        was sliced to "eleted …" and read as merely offered. It cuts the other
+        way too — "undeleted" sliced down to a "deleted" nobody wrote."""
+        from cs import signals
+
+        said = "Deleted the folder with `rm -rf build`"
+        self.assertEqual(signals._basis(said, said.index("rm -rf")), "ran")
+        offered = "Undeleted nothing; `rm -rf build` is what I would run"
+        self.assertEqual(
+            signals._basis(offered, offered.index("rm -rf")), "proposed")
+
+    def test_one_session_ledger_names_what_it_destroyed(self):
+        """`cs show` carries the same readings as the reports do, and a
+        session that removed a tree is exactly what its ledger is for."""
+        _, out = self._run("show", WIPED[:8])
+        self.assertIn("Risk & continuity", out)
+        self.assertIn("destroyed", out)
+        self.assertIn("reported done", out)
+        # …and a session that only offered says so, in the weaker word.
+        _, offered = self._run("show", OFFERED[:8])
+        self.assertIn("offered", offered)
+        self.assertIn("outcome not recorded", offered)
+
+    def test_a_destructive_command_you_typed_is_an_instruction(self):
+        """A command in your own message is what you asked for. The store
+        cannot say it was carried out, whatever tense you wrote it in."""
+        from cs import db, signals
+
+        conn = sqlite3.connect(Path(self._tmp.name) / "session-store.db")
+        conn.execute(
+            "INSERT INTO turns (session_id, turn_index, user_message,"
+            " assistant_response) VALUES (?,?,?,?)",
+            (CALM, 90, "I deleted it with rm -rf build ✓", "noted"),
+        )
+        conn.commit()
+        conn.close()
+        conn = db.connect()
+        rows = signals.destructive(conn)
+        conn.close()
+        typed = next(r for r in rows if r["id"] == CALM)
+        self.assertEqual(typed["basis"], "proposed")
+        self.assertEqual(typed["side"], "you")
 
     def test_the_scanner_knows_the_credential_formats_in_common_use(self):
         """A shape it cannot name is a shape it cannot report.
@@ -588,9 +749,9 @@ class GovernanceTest(StoreTest):
         _, out = self._run("audit")
         self.assertIn("Saved checkpoints", out)
         self.assertNotIn("fromcheckpoint99", out)
-        # A checkpoint has no turn to open, so the row offers the view that
-        # actually reads one back rather than '--turn 0'.
-        self.assertIn("inspect cs show sess-alp", out)
+        # A checkpoint has no turn to open, so the section offers the view
+        # that actually reads one back rather than '--turn 0'.
+        self.assertIn("cs show <session>", out)
 
         # Older checkpoints are not scanned because `cs brief` cannot open
         # them; every audit command must lead to the record that matched.

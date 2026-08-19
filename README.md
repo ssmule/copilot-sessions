@@ -127,11 +127,19 @@ turns, checkpoints *and* sensitive file paths to answer the question masking
 cannot — **which conversations hold a credential at all** — and leads with who
 pasted it, because that is what decides whether you rotate or shrug.
 
-<img src="docs/img/audit.svg" alt="cs audit — one session needing action, with severity counts, masked evidence, and the command that opens the exact turn" width="820">
+<img src="docs/img/audit.svg" alt="cs audit — one session needing action, with severity counts and masked evidence hanging under its row" width="820">
 
 `risk` is **certainty, not value**: `cs` can say how sure it is that something
 *is* a credential, never what it opens. No value is ever printed — only the
-name, a public prefix, and masked evidence.
+name, a public prefix, and masked evidence. A finding is called `hardcoded`
+when it reads as source *and* the session wrote a file — a password in a
+config is a different problem from one quoted in a sentence.
+
+The same page answers what a session **took away**: files removed, history
+rewritten, a database dropped, infrastructure torn down. The store keeps no
+delete event and no exit code, so that is read out of the conversation and
+split in two — what the session reports having done, and what it merely
+offered to do.
 
 Beside it, `cs yolo` shows which sessions ran unattended and on what evidence,
 and `cs handoff` follows work passed from one session to the next.

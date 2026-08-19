@@ -138,8 +138,15 @@ class CSTest(StoreTest):
         self.assertIn("4.00 AIU", out)            # 1.5 + 2.5 nano-AIU
         self.assertIn("claude-opus-4.8", out)
         self.assertIn("2 across 1 sessions", out)  # 2 calls, 1 session
-        self.assertIn("1 errors", out)             # one 'error' finish_reason
         self.assertIn("portal", out)               # by-repository section
+        # No `issues` row. It was thirteen events in thirty-nine thousand on a
+        # page about where the credits went, and a content filter is not a
+        # spend fact — `cs efficiency` breaks the same calls out by finish
+        # reason, which is the question they answer.
+        self.assertNotIn("issues", out)
+        _, efficiency = self._run("efficiency", "7")
+        self.assertIn("Calls that ended badly", efficiency)
+        self.assertIn("error: 1", efficiency)      # one 'error' finish_reason
 
     def test_spend_is_reported_per_vendor_whoever_the_vendor_is(self):
         """Copilot routes across providers, so nothing here may assume one.

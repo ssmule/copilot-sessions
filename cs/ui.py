@@ -77,6 +77,8 @@ def tui_theme(curses) -> dict[str, int]:
         "summary": 0,
         "repo": curses.A_DIM,
         "status": curses.A_DIM,
+        "warn": curses.A_BOLD,
+        "label": curses.A_BOLD,
     }
     try:
         curses.start_color()
@@ -107,6 +109,8 @@ def tui_theme(curses) -> dict[str, int]:
                 "summary": (255, 235),
                 "repo": (111, 235),
                 "status": (220, 235),
+                "warn": (208, 235),
+                "label": (233, 235),
             } if _LIGHT_THEME else {
                 "background": (252, bg),
                 "title": (39, bg),          # the product blue, saturated
@@ -118,7 +122,11 @@ def tui_theme(curses) -> dict[str, int]:
                 "selected": (45, bg),
                 "cursor": (231, 25),        # white on deep azure: the row
                 "header": (245, bg),
-                "separator": (238, bg),
+                # 240, not 238. On a 234 ground a 238 rule is four steps of
+                # nothing: the menu's group hairlines and the header rule
+                # were structurally present and visually absent, which is
+                # most of why the landing screen read as one flat grey wash.
+                "separator": (240, bg),
                 "number": (244, bg),
                 "active": (49, bg),         # mint: this session is live
                 "turns": (84, bg),
@@ -126,6 +134,12 @@ def tui_theme(curses) -> dict[str, int]:
                 "summary": (253, bg),
                 "repo": (69, bg),
                 "status": (214, 236),       # a footer bar, lifted off the bg
+                "warn": (214, bg),          # the same amber, on the ground
+                # The menu's own labels. Bright and bold, because they are
+                # the thing you are choosing between: at plain 253 they
+                # carried no more weight than the sentence explaining them,
+                # and eighteen rows of that is a screen with no foreground.
+                "label": (255, bg),
             }
         else:
             palette = {
@@ -143,6 +157,8 @@ def tui_theme(curses) -> dict[str, int]:
                 "summary": (curses.COLOR_WHITE, default_bg),
                 "repo": (curses.COLOR_BLUE, default_bg),
                 "status": (curses.COLOR_YELLOW, default_bg),
+                "warn": (curses.COLOR_YELLOW, default_bg),
+                "label": (curses.COLOR_WHITE, default_bg),
             }
 
         styles = {}
@@ -155,6 +171,8 @@ def tui_theme(curses) -> dict[str, int]:
         styles["header"] |= curses.A_BOLD
         styles["credits"] |= curses.A_BOLD
         styles["status"] |= curses.A_BOLD
+        styles["warn"] |= curses.A_BOLD
+        styles["label"] |= curses.A_BOLD
         return styles
     except curses.error:
         return fallback
@@ -738,7 +756,10 @@ def heading(text: str, colour: str = "", width: int = 0) -> str:
     """
     colour = colour or ACCENT
     head = f"{GUTTER}{colour}▌{RST}{BOLD}{text}{RST}"
-    span = width - cells(_strip(text)) - 4
+    # Ends where `rule` ends. The hairline used to stop two columns short of
+    # every full-width rule above it, which on a page of five sections is
+    # five ragged right edges and nothing to tell you they were deliberate.
+    span = width - cells(_strip(text)) - 2
     if width and span > 3:
         head += f" {SLATE}{'─' * span}{RST}"
     return head

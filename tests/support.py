@@ -237,6 +237,13 @@ CALM = "33333333-3333-4333-8333-333333333333"
 PARENT = "44444444-4444-4444-8444-444444444444"
 CHILD = "55555555-5555-4555-8555-555555555555"
 LEAK = "66666666-6666-4666-8666-666666666666"
+# One session that reports having removed things, and one that only offers to.
+WIPED = "88888888-8888-4888-8888-888888888888"
+OFFERED = "99999999-9999-4999-8999-999999999999"
+# A credential written as source, in a session that wrote a file — both halves
+# of "hardcoded" — beside LEAK, which pastes one into a sentence and writes
+# nothing.
+HARDCODED = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 
 def _add_governance_rows(base: Path) -> None:
@@ -263,6 +270,12 @@ def _add_governance_rows(base: Path) -> None:
              "2026-07-05T09:00", "2026-07-05T12:00"),
             (LEAK, "/tmp/l", "acme/portal", "Wire up the database",
              "2026-07-06T09:00", "2026-07-06T09:40"),
+            (WIPED, "/tmp/w", "acme/portal", "Clear out the stale tree",
+             "2026-07-07T09:00", "2026-07-07T09:40"),
+            (OFFERED, "/tmp/o", "acme/portal", "Ask about clearing the tree",
+             "2026-07-08T09:00", "2026-07-08T09:40"),
+            (HARDCODED, "/tmp/hc", "acme/portal", "Write the settings module",
+             "2026-07-09T09:00", "2026-07-09T09:40"),
         ],
     )
     conn.executemany(
@@ -277,6 +290,16 @@ def _add_governance_rows(base: Path) -> None:
             (PARENT, 0, "create a handoff file for this work", "written"),
             (CHILD, 0, "read HANDOFF.md and continue from there", "continuing"),
             (LEAK, 0, "connect with DB_PASSWORD=hunter2xyz please", "connected"),
+            # Past tense, a tick, and no fence: the session says it did it.
+            (WIPED, 0, "clean up the build tree",
+             "Deleted the stale tree with `rm -rf build/` \u2713 and "
+             "`git push --force` to drop the bad commit \u2713"),
+            # The same commands, offered inside a fenced block: an instruction,
+            # not a report, and the store cannot say whether it was followed.
+            (OFFERED, 0, "how would I clear it?",
+             "You could remove it first:\n```bash\nrm -rf build/\n```"),
+            (HARDCODED, 0, "write the settings module",
+             'Written to settings.py:\n\nAPI_PASSWORD = "hunter2xyz"\n'),
         ],
     )
     conn.executemany(
@@ -292,6 +315,7 @@ def _add_governance_rows(base: Path) -> None:
         [
             (PARENT, "/tmp/h/HANDOFF.md", "create"),
             (CHILD, "/tmp/h/HANDOFF.md", "read"),
+            (HARDCODED, "/tmp/hc/settings.py", "create"),
         ],
     )
     conn.commit()

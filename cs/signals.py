@@ -459,6 +459,71 @@ def _masked_line(text: str) -> str:
     return ""
 
 
+# A credential *mentioned* and a credential *hardcoded* are different
+# problems: one is a value that went past the model, the other is a value
+# that is now in a file. Neither the store nor the masker can tell them
+# apart on their own, so this is the shape half of the test — a line that
+# reads as source rather than as prose — and `_wrote_files` is the other.
+#
+# Deliberately narrow. `password: hunter2` in a sentence is prose with a
+# colon in it; what counts is a quoted value, an `export`, or the
+# no-spaces-around-the-equals form an env file and a shell line both use.
+_NAME = r"[A-Za-z_][A-Za-z0-9_.\-]*"
+_CODE_SHAPE = re.compile(
+    rf"""(?ix)
+    (?:
+        # An equals with a quoted value is an assignment wherever it
+        # appears — a shell line, a config literal, a keyword argument.
+        (?: ^ | [\s({{\[,;"'`] ) (?: export \s+ )?
+        {_NAME} \s* = \s* ["']
+      |
+        # Unquoted, the spacing is what separates code from prose: an env
+        # file and a shell line write `NAME=value` closed up, and a sentence
+        # writes `the token = …` with room around it.
+        (?: ^ | [\s({{\[,;"'`] ) (?: export \s+ )?
+        {_NAME} = \[redacted
+      |
+        # A colon only counts when the value is quoted: that is JSON, YAML or
+        # a config literal. `token: [redacted]` unquoted is an English
+        # sentence with a colon in it, and most of them are.
+        (?: ^ | [\s({{\[,;"'] ) ["']? {_NAME} ["']? \s* : \s* ["']
+      |
+        # …unless it is plainly inside an object literal, where an unquoted
+        # value is still code: `{{secret: …}}`.
+        [{{,] \s* ["']? {_NAME} ["']? \s* : \s* \[redacted
+    )
+    """
+)
+
+
+def _hardcoded(line: str) -> bool:
+    """Whether a finding's evidence line reads as source, not as prose."""
+    return bool(line) and bool(_CODE_SHAPE.search(line))
+
+
+def _wrote_files(conn: sqlite3.Connection, session_ids: list[str]) -> set[str]:
+    """Which of these sessions created or edited a file.
+
+    The corroborating half of "hardcoded". `session_files` records the paths
+    a session wrote; it does not record which line went into which file, so
+    this says the session put something on disk, never that it put *this*
+    value there. That is why the report says "in a session that wrote files"
+    rather than "in this file".
+    """
+    if not session_ids or not db.has_files(conn):
+        return set()
+    tool = db.optional(conn, "session_files", "tool_name")
+    placeholders = ",".join("?" * len(session_ids))
+    return {
+        row[0] for row in conn.execute(
+            f"""SELECT DISTINCT session_id FROM session_files
+                WHERE session_id IN ({placeholders})
+                  AND {tool} IN ('create', 'edit')""",
+            tuple(session_ids),
+        )
+    }
+
+
 def _checkpoint_text(
     conn: sqlite3.Connection, session_id: str | None
 ) -> list[tuple[str, str]]:
@@ -572,10 +637,15 @@ def exposures(conn: sqlite3.Connection, session_id: str | None = None) -> list[d
             tuple(session_ids),
         )
     }
+    wrote = _wrote_files(conn, session_ids)
     for entry in per.values():
         sid = entry["id"]
         active, summary, repo, cwd = meta.get(sid, ("", "", "", ""))
         entry.update(active=active, summary=summary, repo=repo, cwd=cwd)
+        # Both halves, or neither: a code-shaped line in a session that wrote
+        # nothing to disk is a snippet discussed, and a session that wrote
+        # files but whose finding is a sentence is a password talked about.
+        entry["hardcoded"] = _hardcoded(entry["line"]) and sid in wrote
         # A session is as serious as the most certain thing in it, and is
         # ranked on that rather than on how many findings it has: one leaked
         # private key outranks thirty password-shaped assignments.
@@ -584,6 +654,234 @@ def exposures(conn: sqlite3.Connection, session_id: str | None = None) -> list[d
              if any(redact.severity(kind) == name for kind in entry["kinds"])),
             "medium",
         )
-        entry["rank"] = redact.RANK.index(entry["severity"])
+        # Half a step up when it is hardcoded. A password-shaped assignment
+        # sitting in a file the session wrote is a worse finding than the
+        # same shape quoted in a sentence, and burying twenty-two of them
+        # under ninety mentions of the same certainty is not highlighting
+        # them. Half, not a whole step: it is still less certain than a
+        # documented key format, and should not outrank one.
+        entry["rank"] = redact.RANK.index(entry["severity"]) - (
+            0.5 if entry["hardcoded"] else 0
+        )
     return sorted(per.values(),
                   key=lambda e: (e["rank"], -e["count"], e["id"], e["side"]))
+
+
+# ── Destructive activity ─────────────────────────────────────────────
+# The third thing you have to be able to answer about work an agent did:
+# what did it take away. Nothing here is a column in the store either.
+#
+# `session_files.tool_name` records `create` and `edit` and nothing else —
+# there is no delete event, anywhere, in any Copilot release this reads. So a
+# removal can only be found where it was written down: in the conversation.
+# That is a weaker basis than `cs audit`'s and this module says so rather
+# than dressing it up, exactly as the autonomy verdict does.
+
+# Kind → (severity, what it is, the pattern). Ordered worst first; the first
+# rule to claim a line wins it, so `git push --force` is history rather than
+# the `push` half of anything else.
+_DESTRUCTIVE: list[tuple[str, str, str, re.Pattern[str]]] = [
+    ("history", "critical", "rewrote or discarded committed work", re.compile(
+        r"""(?ix) \b (?:
+            git \s+ push [^\n|;&]*? (?: --force(?!-with-lease) | \s -f \b )
+          | git \s+ reset \s+ --hard
+          | git \s+ (?: clean \s+ -[a-z]* [dfx] | branch \s+ -D )
+          | git \s+ filter-branch | git \s+ filter-repo
+        ) """)),
+    ("data", "critical", "dropped or emptied a database object", re.compile(
+        r"""(?ix) \b (?:
+            drop \s+ (?: table | database | schema | index ) \b
+          | truncate \s+ table \b
+          | delete \s+ from \s+ [A-Za-z_][\w.]* \s* (?: ; | $ )
+          | db \.dropDatabase \s* \(
+        ) """)),
+    ("infra", "critical", "destroyed something that was deployed", re.compile(
+        r"""(?ix) \b (?:
+            terraform \s+ destroy
+          | kubectl \s+ delete \b
+          | helm \s+ (?: delete | uninstall ) \b
+          | aws \s+ s3 \s+ (?: rb | rm ) [^\n]* --recursive
+          | docker \s+ (?: system \s+ prune | volume \s+ rm | rm \s+ -[a-z]*f )
+        ) """)),
+    ("delete", "high", "removed files from disk", re.compile(
+        r"""(?ix) (?:
+            \b rm \s+ (?: -[a-z]+ \s+ )* -[a-z]* [rf] [a-z]* \b
+          | \b git \s+ rm \b
+          | \b find \b [^\n]* \s -delete \b
+          | \b shutil\.rmtree \s* \(
+          | \b os\. (?: remove | unlink | rmdir ) \s* \(
+          | \b Remove-Item \b [^\n]* -Recurse
+          | \b rimraf \b
+        ) """)),
+    ("remote-exec", "high", "ran code fetched from the network", re.compile(
+        r"""(?ix) \b (?: curl | wget ) \b [^\n|]* \| \s* (?: sudo \s+ )?
+            (?: ba | z | fi )? sh \b """)),
+    ("privilege", "medium", "widened permissions or ran as root", re.compile(
+        r"""(?ix) (?:
+            \b chmod \s+ (?: -[a-z]+ \s+ )* 777 \b
+          | \b chmod \s+ (?: -[a-z]+ \s+ )* a?\+ [rwx]* w
+          | \b chown \s+ -R \b
+          | \b sudo \s+ (?! -h | --help ) [a-z]
+        ) """)),
+]
+
+# What turns a command into a report of one. The agent narrates its own work
+# in the past tense and ticks it off; a command it is *offering* is written
+# as an instruction, in a fenced block, with no outcome attached.
+_DONE = re.compile(
+    r"""(?ix) (?: ✓ | ✅ | \b (?:
+        deleted | removed | dropped | destroyed | truncated | wiped | purged
+      | staged | committed | pushed | cleaned | uninstalled
+      | ran \s+ (?:it|this|that) | already \s+ (?:gone|removed|deleted)
+    ) \b ) """
+)
+
+# …and what takes it back. A line can carry a completion word that belongs to
+# something else entirely — "their blobs still sit in the repo history (they
+# were committed in earlier commits)" sits on the same line as the
+# `git filter-repo` the agent goes on to say it did **not** run. Anything in
+# this list inside the window cancels the claim.
+_NOT_DONE = re.compile(
+    r"""(?ix) (?: n't | \b (?:
+        not | never | without | skip (?:ped)? | instead | interrupted
+      | failed | would | should | could | want \s+ me | if \s+ you
+    ) \b ) """
+)
+
+# How close a completion word has to sit to the command for it to be about
+# that command. Generous after (the agent writes "`git rm -r x` staged"),
+# tight before ("deleted it with `rm -rf x`"), and nothing beyond that: a
+# marker at the far end of a paragraph is about the paragraph.
+_DONE_AFTER, _DONE_BEFORE = 48, 24
+
+DESTRUCTIVE_BASIS = ("ran", "proposed")
+
+
+def _fenced(text: str) -> list[tuple[int, int]]:
+    """The spans of ``` blocks in `text`.
+
+    A command inside one is a command being *offered*: the whole convention
+    of a fenced block is "here is something for you to run". The same command
+    in running prose, in the past tense, is the agent telling you what it did.
+    """
+    marks = [m.start() for m in re.finditer(r"^\s*```", text, re.M)]
+    return list(zip(marks[::2], marks[1::2] + [len(text)] * (len(marks) % 2),
+                    strict=False))
+
+
+def _basis(text: str, at: int, fences: list[tuple[int, int]] | None = None) -> str:
+    """`ran` or `proposed` for a match at offset `at`.
+
+    Two questions, in this order: is it inside a fenced block, and does the
+    line it sits on report an outcome. Nothing here is proof — the store
+    holds no exit code — and `ran` means "the session says so", which is the
+    strongest thing that can honestly be said about it.
+    """
+    if any(start <= at < end
+           for start, end in (_fenced(text) if fences is None else fences)):
+        return "proposed"
+    line_start = text.rfind("\n", 0, at) + 1
+    line_end = text.find("\n", at)
+    line_end = line_end if line_end != -1 else len(text)
+    start = max(line_start, at - _DONE_BEFORE)
+    # Snap back to a word boundary. Cutting mid-word is wrong in both
+    # directions: it sliced "Deleted the folder with `rm -rf x`" down to
+    # "eleted …" and lost a real report, and it would equally cut
+    # "undeleted" down to a "deleted" that was never written.
+    while start > line_start and not text[start - 1].isspace():
+        start -= 1
+    window = text[start:min(line_end, at + _DONE_AFTER)]
+    if not _DONE.search(window) or _NOT_DONE.search(window):
+        return "proposed"
+    return "ran"
+
+
+def _command(text: str, at: int, span: int = 160) -> str:
+    """The command, taken from where it starts rather than where its line does.
+
+    Reading from the start of the line put the sentence that introduces a
+    command in the column where the command should be — thirty characters of
+    "⚠️ **One caveat:** these files are…" and then the window ran out. The
+    match is what the row is about, so the match leads, and the page trims
+    whatever is left to its own width.
+    """
+    line_end = text.find("\n", at)
+    rest = text[at:line_end if line_end != -1 else len(text)]
+    cut = " ".join(rest.split()).rstrip("`*|> ")
+    return cut[:span] + "…" if len(cut) > span else cut
+
+
+def destructive(
+    conn: sqlite3.Connection, session_id: str | None = None
+) -> list[dict]:
+    """Destructive commands the sessions show, most certain first.
+
+    One row per session, kind and basis — the same shape `exposures` uses,
+    and for the same reason: `rm -rf` offered eight times in one explanation
+    is one thing to look at, not eight.
+    """
+    sql = """SELECT t.session_id, t.turn_index, t.user_message, t.assistant_response
+             FROM turns t"""
+    params: tuple = ()
+    if session_id:
+        sql += " WHERE t.session_id = ?"
+        params = (session_id,)
+
+    per: dict[tuple[str, str, str], dict] = {}
+    for sid, turn_index, prompt, reply in conn.execute(
+        sql + " ORDER BY t.turn_index", params
+    ):
+        for side, text in (("you", prompt or ""), ("agent", reply or "")):
+            if not text:
+                continue
+            # Once per reply, not once per match: a long reply with twenty
+            # `rm` in it was re-scanned for fences twenty times.
+            fences = _fenced(text)
+            claimed: list[tuple[int, int]] = []
+            for kind, severity, meaning, pattern in _DESTRUCTIVE:
+                for match in pattern.finditer(text):
+                    span = match.span()
+                    if any(span[0] < end and start < span[1]
+                           for start, end in claimed):
+                        continue
+                    claimed.append(span)
+                    # Only the agent can report having done something. A
+                    # command you typed is an instruction however it is
+                    # phrased, and the store cannot say it was carried out.
+                    basis = (_basis(text, span[0], fences)
+                             if side == "agent" else "proposed")
+                    entry = per.setdefault(
+                        (sid, kind, basis),
+                        {"id": sid, "kind": kind, "basis": basis,
+                         "severity": severity, "meaning": meaning, "count": 0,
+                         "turn": turn_index, "side": side, "line": ""},
+                    )
+                    entry["count"] += 1
+                    if not entry["line"]:
+                        entry.update(
+                            line=redact.redact(_command(text, span[0])),
+                            turn=turn_index, side=side,
+                        )
+    if not per:
+        return []
+
+    session_ids = sorted({entry["id"] for entry in per.values()})
+    placeholders = ",".join("?" * len(session_ids))
+    meta = {
+        row[0]: row[1:]
+        for row in conn.execute(
+            f"""SELECT id, substr(MAX(created_at, updated_at), 1, 16),
+                       COALESCE({db.optional(conn, 'sessions', 'summary', '', "''")}, '')
+                FROM sessions WHERE id IN ({placeholders})""",
+            tuple(session_ids),
+        )
+    }
+    for entry in per.values():
+        active, summary = meta.get(entry["id"], ("", ""))
+        entry.update(active=active, summary=summary)
+        entry["rank"] = redact.RANK.index(entry["severity"])
+    return sorted(
+        per.values(),
+        key=lambda e: (DESTRUCTIVE_BASIS.index(e["basis"]), e["rank"],
+                       -e["count"], e["id"], e["kind"]),
+    )
