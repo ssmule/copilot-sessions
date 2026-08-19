@@ -1764,9 +1764,13 @@ def _session_footer(session_id: str, others: str, width: int,
             value = command
         lines.append(ui.field("next" if index == 0 else "", value))
     if redact.enabled():
-        lines.append(
-            f"  {ui.MUTED}credentials masked · CS_REDACT=0 to show raw text{ui.RST}"
-        )
+        # The only fixed-width string on a page that is otherwise width-aware,
+        # and at 49 cells it ran off any window under about fifty columns —
+        # the footer of every session view, so the overrun was everywhere.
+        note = "credentials masked · CS_REDACT=0 to show raw text"
+        if ui.cells(note) > width:
+            note = "credentials masked"
+        lines.append(f"  {ui.MUTED}{note}{ui.RST}")
     lines.append("")
     return lines
 
@@ -1801,7 +1805,7 @@ def _render_show(ref: str, short: bool = False, show_asks: bool = False) -> None
         conn.close()
         sys.exit(1)
     cwd = detail[2]
-    turns = db.session_turns(conn, session_id)
+    turn_count = db.session_turn_count(conn, session_id)
     usage = db.session_usage(conn, session_id)
     checkpoint = db.session_checkpoint(conn, session_id)
     prompts = db.session_prompts(conn, session_id)
@@ -1825,7 +1829,7 @@ def _render_show(ref: str, short: bool = False, show_asks: bool = False) -> None
     asks = [text for _, text in ((i, _user_text(t)) for i, t in prompts) if text]
 
     print("\n".join(
-        _session_header(detail, len(turns), total_nano, inner,
+        _session_header(detail, turn_count, total_nano, inner,
                         "brief" if short else "show")
     ))
 
@@ -1879,6 +1883,12 @@ def _render_show(ref: str, short: bool = False, show_asks: bool = False) -> None
         print(ui.heading(f"Every request · {len(asks)}", ui.ACCENT))
         for number, text in enumerate(asks):
             _item(redact.redact(text), body, f"{number:>3}", ui.MUTED)
+        # The left column is a turn number, and a number you cannot open is
+        # decoration. This used to be said under the turn index at the foot
+        # of the page; the index has gone — it was a third rendering of this
+        # same list — so the one numbered list left says it instead.
+        print(f"    {ui.MUTED}open one with "
+              f"'cs read {_short_ref(session_id)} --turn N'{ui.RST}")
         print()
 
     if refs:
@@ -1936,29 +1946,6 @@ def _render_show(ref: str, short: bool = False, show_asks: bool = False) -> None
         print()
 
     _print_assets_used(used_skills, used_agents, inner - 4, subagents)
-
-    if turns:
-        print(ui.heading(f"Conversation · {len(turns)} turns", ui.ACCENT))
-        for index, message, reply_length in turns:
-            text = _user_text(message or "")
-            shown = ui.trunc(text, inner - 14) if text else "(no prompt recorded)"
-            size = (
-                f"{(reply_length or 0) / 1000:.1f}k"
-                if (reply_length or 0) > 999
-                else str(reply_length or 0)
-            )
-            print(
-                f"    {ui.ACCENT}{index:>3}{ui.RST}  {shown}"
-                f"  {ui.MUTED}↳ {size}{ui.RST}"
-            )
-        # An index is only an index if you can open a page of it. The left
-        # column is a turn number and the right is the size of the reply,
-        # and neither said so — so the whole block read as decoration.
-        print(
-            f"    {ui.MUTED}turn · your request · reply size   "
-            f"open one with 'cs read {_short_ref(session_id)} --turn N'{ui.RST}"
-        )
-        print()
 
     # The lessons this page held back, offered once at the foot of it. `show`
     # is the page most likely to be read beside the Copilot CLI's own status
@@ -2073,6 +2060,26 @@ def _turn_size(prompt: str, reply: str) -> str:
     return f"{total} chars"
 
 
+def _turn_body(text: str | None, absent: str, colour: str, inner: int) -> list[str]:
+    """One side of a turn, rendered and attributed to whoever said it.
+
+    Trailing blank lines are dropped before the rail goes on. A reply almost
+    always ends with a newline, and a rail drawn beside nothing reads as a
+    block that has more in it than it does.
+
+    An absent side is set in the furniture colour, not the body colour: it is
+    this view describing the record, not the record itself, and printing
+    "(empty)" in the same type as a prompt makes it look like one.
+    """
+    if text and text.strip():
+        body = ui.markdown(redact.redact(text), inner)
+        while body and not body[-1].strip():
+            body.pop()
+    else:
+        body = [f"    {ui.MUTED}{absent}{ui.RST}"]
+    return ui.spine(body, colour)
+
+
 def _render_transcript(
     session_id: str, detail: tuple, turns: list[tuple], only: int | None,
     nano: int | None = None,
@@ -2080,9 +2087,10 @@ def _render_transcript(
     width = min(shutil.get_terminal_size().columns, _SESSION_WIDTH)
     inner = width - 4
 
-    # read is the conversation and nothing else. The index it used to print
-    # ahead of the turns is the same list `cs show` gives, and a table of
-    # contents you have already seen is just distance from the text.
+    # read is the conversation and nothing else. It used to print an index
+    # ahead of the turns; so did `cs show`, until that one went too — a table
+    # of contents is only distance from the text, and the same list was being
+    # drawn three times. `cs show --asks` is the numbered list now.
     lines = _session_header(detail, len(turns), nano, inner, "read")
     if only is not None:
         turns = [turn for turn in turns if turn[0] == only]
@@ -2091,24 +2099,22 @@ def _render_transcript(
 
     for index, prompt, reply, when in turns:
         stamp = when[11:16] if len(when) >= 16 else ""
-        meta = " · ".join(part for part in (stamp, _turn_size(prompt, reply)) if part)
+        note = " · ".join(part for part in (stamp, _turn_size(prompt, reply)) if part)
         # The ask goes in the rule itself: scrolling a long transcript should
-        # say what you are looking at, not just how far in you are.
+        # say what you are looking at, not just how far in you are. When and
+        # how big ride the same rule's other end, so a turn opens on one line
+        # of furniture rather than on a rule and a stray line of grey.
         gist = _user_text(prompt or "")
         title = f"Turn {index}"
         if gist:
-            title = f"{title} · {ui.trunc(gist, inner - 22)}"
-        lines.append(ui.rule(inner, title))
-        if meta:
-            lines.append(f"  {ui.MUTED}{meta}{ui.RST}")
+            title = f"{title} · {ui.trunc(gist, max(inner - len(note) - 26, 12))}"
+        lines.append(ui.rule(inner, title, note=note))
         lines.append("")
-        lines.append(ui.speaker(ui.YOU_MARK, "You", ui.MINT, inner))
-        lines.extend(ui.markdown(redact.redact(prompt or "(empty)"), inner))
+        lines.append(ui.speaker(ui.YOU_MARK, "You", ui.MINT))
+        lines.extend(_turn_body(prompt, "(empty)", ui.MINT, inner))
         lines.append("")
-        lines.append(ui.speaker(ui.COPILOT_MARK, "Copilot", ui.VIOLET, inner))
-        lines.extend(
-            ui.markdown(redact.redact(reply or "(no reply recorded)"), inner)
-        )
+        lines.append(ui.speaker(ui.COPILOT_MARK, "Copilot", ui.VIOLET))
+        lines.extend(_turn_body(reply, "(no reply recorded)", ui.VIOLET, inner))
         lines.append("")
 
     lines.extend(_session_footer(session_id, "brief|show|resume", inner))
