@@ -127,8 +127,15 @@ employer domain, the real name and the local username. Collapsing to one
 commit makes findings 1 and 2 moot for the past, not for the future: the sole
 commit is signed and authored
 `sommaharajan <28564186+ssmule@users.noreply.github.com>`, and the identity is
-pinned repo-locally so the next commit matches it. Run the scan again before
-going public:
+pinned repo-locally so the next commit matches it.
+
+The account has since been renamed (`ssmule` → `som-mns` → `smaharajan`), so
+the repo-local pin is now `28564186+smaharajan@users.noreply.github.com`.
+Existing commits keep the old address and stay attributed regardless: GitHub
+resolves a noreply address on the `28564186+` account id, not on the username
+after it. The ID-less form (`ssmule@users.noreply.github.com`) is the one that
+silently loses attribution on a rename — never use it. Run the scan again
+before going public:
 
 ```bash
 git clone --mirror <remote> /tmp/check.git
