@@ -32,7 +32,23 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
         )
         sys.exit(1)
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    if shortfall := missing_essentials(conn):
+    # `connect` itself does not read the file, so a path that is not a
+    # database only fails on the first query — which was this one, and it
+    # arrived as a traceback rather than as the sentence every other bad
+    # COPILOT_HOME gets. A truncated download, a file restored from the
+    # wrong backup and a store still being written all land here.
+    try:
+        shortfall = missing_essentials(conn)
+    except sqlite3.DatabaseError as broken:
+        conn.close()
+        print(
+            f"error: {path} is not readable as a database ({broken})\n"
+            f"       if Copilot is mid-write, try again; otherwise set "
+            f"COPILOT_HOME to the directory Copilot actually writes.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if shortfall:
         conn.close()
         print(
             f"error: {path} is not a Copilot session store\n"
@@ -337,20 +353,23 @@ def session_detail(conn: sqlite3.Connection, session_id: str) -> tuple | None:
     ).fetchone()
 
 
-def session_turns(conn: sqlite3.Connection, session_id: str) -> list[tuple]:
-    # The turn index shows only the first line or so of each prompt, but the
-    # cut is deliberately far wider than what is displayed: masking runs on
-    # what this returns, and a credential sliced by the cut is no longer
-    # recognisable as one, so its opening characters would print in clear.
-    # Everything displayable sits well inside 2000.
+def session_turn_count(conn: sqlite3.Connection, session_id: str) -> int:
+    """How many turns a session holds — every one of them, prompt or not.
+
+    This replaced a query that pulled 2,000 characters of every prompt in the
+    session so that the page could print `len()` of the result. That query
+    backed the turn index on `cs show`, which has gone: it was a third
+    rendering of a list the page already showed the ends of and `--asks`
+    already showed in full, and the conversation itself belongs to `cs read`.
+
+    Counted rather than filtered on purpose. A turn with no prompt is still a
+    turn — it is compaction, or a tool loop — and the header says "turns",
+    not "requests". `session_prompts` is the one that drops the empties, and
+    the two disagreeing is the point of having both.
+    """
     return conn.execute(
-        """SELECT turn_index,
-                  substr(COALESCE(user_message, ''), 1, 2000),
-                  length(COALESCE(assistant_response, ''))
-           FROM turns WHERE session_id = ?
-           ORDER BY turn_index""",
-        (session_id,),
-    ).fetchall()
+        "SELECT count(*) FROM turns WHERE session_id = ?", (session_id,)
+    ).fetchone()[0]
 
 
 def session_transcript(conn: sqlite3.Connection, session_id: str) -> list[tuple]:
