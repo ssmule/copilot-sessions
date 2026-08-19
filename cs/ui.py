@@ -529,21 +529,32 @@ PALETTE_256 = sorted({
 })
 
 
-def rule(width: int, title: str = "", colour: str = "") -> str:
-    """A full-width rule, optionally titled: ── Title ────────────.
+def rule(width: int, title: str = "", colour: str = "", note: str = "") -> str:
+    """A full-width rule, optionally titled: ── Title ──────── note ──.
 
     The dashes are furniture and are drawn as furniture. Every one of them
     used to be in the accent colour, which on a page with six sections meant
     six full-width coloured lines competing with the words between them —
     the loudest thing on screen was the thing carrying the least. The accent
     survives as the two leading dashes, which is enough to mark the edge.
+
+    `note` rides the right-hand end instead of taking a line of its own.
+    Metadata about the section a rule opens — a timestamp, a size — was
+    printed underneath it, which put a lone fragment of grey between the
+    label and the thing it labels. A rule whose two ends are "what this is"
+    and "how big it is" is one line you can skim; two lines are two.
     """
     colour = colour or ACCENT
+    # Reserve the note's own columns before anything else is measured, so a
+    # long title shortens rather than pushing the note off the right edge.
+    tail = f" {MUTED}{note}{RST} {SLATE}──{RST}" if note else ""
+    room = max(width - (cells(_strip(note)) + 4 if note else 0), 1)
     if not title:
-        return f"{GUTTER}{SLATE}{'─' * width}{RST}"
-    title = _fit(title, max(width - 5, 1))
-    dashes = max(width - cells(_strip(title)) - 4, 0)
-    return f"{GUTTER}{colour}──{RST} {BOLD}{title}{RST} {SLATE}{'─' * dashes}{RST}"
+        return f"{GUTTER}{SLATE}{'─' * room}{RST}{tail}"
+    title = _fit(title, max(room - 5, 1))
+    dashes = max(room - cells(_strip(title)) - 4, 0)
+    return (f"{GUTTER}{colour}──{RST} {BOLD}{title}{RST} "
+            f"{SLATE}{'─' * dashes}{RST}{tail}")
 
 
 # ── Who is speaking ──────────────────────────────────────────────────
@@ -654,25 +665,66 @@ def menu_icon(name: str) -> str:
     return plain if _ASCII_GLYPHS else emoji
 
 
-def speaker(mark: str, name: str, colour: str = "", width: int = 0) -> str:
+def speaker(mark: str, name: str, colour: str = "") -> str:
     """A transcript speaker label: the mark, then the name in its own colour.
 
-    Shaped like `heading` on purpose — same gutter, same hairline, same
-    weight — because a turn is a section and this is what its label looks
-    like when the section has a voice. The mark stands where the accent bar
-    would be, so the two never appear on one line fighting for the same two
-    columns.
+    A compact label, not a rule. It used to draw a full-width hairline like
+    `heading` does, which meant a two-line exchange arrived under three
+    full-width rules — the turn's and one per speaker — all the same weight,
+    so the eye had nothing to rank and the furniture outnumbered the words.
+    Attribution is `spine`'s job now, down the side of the block, and this
+    only has to name who is about to speak.
 
     The name carries the colour and the mark does not: a terminal is free to
     render an emoji in its own palette, and a mark that ignores the escape
     while the word beside it obeys reads as a rendering fault.
     """
     colour = colour or ACCENT
-    head = f"{GUTTER}{mark}  {colour}{BOLD}{name}{RST}"
-    span = width - cells(mark) - cells(name) - 5
-    if width and span > 3:
-        head += f" {SLATE}{'─' * span}{RST}"
-    return head
+    # Padded to a fixed column rather than by a fixed gap: the emoji marks are
+    # two cells wide and their ASCII forms are one, so a literal two spaces
+    # put the name in a different column depending on `CS_GLYPHS` — visible
+    # the moment the rail runs underneath it.
+    return f"{GUTTER}{mark}{' ' * max(4 - cells(mark), 1)}{colour}{BOLD}{name}{RST}"
+
+
+# The rail that attributes a block of text to whoever said it, and the one
+# that marks a quotation inside it. Both are single-cell verticals from the
+# box-drawing block this module already draws every table from, so a terminal
+# that can render a rule can render these — and `CS_GLYPHS=ascii` gets the
+# pipe, for the same reason the speaker marks have a plain form.
+SPINE = "|" if _ASCII_GLYPHS else "▎"
+
+
+def spine(lines: list[str], colour: str = "", indent: str = "    ") -> list[str]:
+    """Attribute an already-rendered block to a speaker with a left rail.
+
+    A transcript's one job is to make who-said-what answerable at a glance.
+    The label above a block says it in words, once; this says it down the
+    block's whole height, which is what lets a fifty-turn session be scanned
+    instead of read. It replaced a full-width hairline per speaker — three
+    rules a turn, all of them the same weight, so the eye had nothing to
+    rank and the furniture outnumbered the conversation two to one.
+
+    The rail takes the first columns of the indent `markdown` already
+    applied rather than adding to the left margin: body text stays in the
+    column every other view puts it in, so a transcript and a report still
+    line up when read one after the other.
+
+    A blank line inside the block keeps the rail and drops the trailing
+    space — an unbroken edge is the whole point, and trailing whitespace on
+    a blank line is invisible until something diffs it.
+    """
+    colour = colour or ACCENT
+    rail = f"{GUTTER}{colour}{SPINE}{RST} "
+    out = []
+    for line in lines:
+        if not line.strip():
+            out.append(rail.rstrip())
+        elif line.startswith(indent):
+            out.append(rail + line[len(indent):])
+        else:
+            out.append(rail + line)
+    return out
 
 
 def heading(text: str, colour: str = "", width: int = 0) -> str:
@@ -854,7 +906,25 @@ def markdown(text: str, width: int, indent: str = "    ") -> list[str]:
 
         level = len(stripped) - len(stripped.lstrip("#"))
         if 0 < level <= 6 and stripped[level : level + 1] == " ":
-            out.append(f"{indent}{BOLD}{_inline(stripped[level + 1 :])}{RST}")
+            label = _inline(stripped[level + 1 :])
+            # Bold alone does not out-rank a reply that is already full of
+            # bold spans, and the section titles in a long answer are the one
+            # structure it has — they read as another sentence. The accent
+            # carries the rank instead of a bar, because a bar would want the
+            # two columns to the left of the text and those belong to
+            # whichever rail the block is nested in.
+            weight = f"{ACCENT}{BOLD}" if level <= 2 else BOLD
+            out.append(f"{indent}{weight}{label}{RST}")
+            continue
+
+        # A quotation is somebody else's words inside these ones — usually an
+        # error message or a line of the prompt being answered. Passed
+        # through as prose it arrived with a literal '>' in front of it and
+        # read as a typo; the rail says the same thing the source meant.
+        if stripped.startswith(">"):
+            quoted = stripped.lstrip("> ").rstrip()
+            rail = f"{indent}{SLATE}{SPINE}{RST} "
+            out.extend(rail + part for part in wrap(quoted, max(body - 2, 12)))
             continue
 
         marker, rest = _list_parts(stripped)
