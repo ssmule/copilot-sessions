@@ -825,12 +825,14 @@ class SplitMouseReportTest(unittest.TestCase):
         self._was = cli._SGR_ENABLED
         cli._SGR_ENABLED = True   # the guard only applies with reporting on
         cli._ESC_AT = 0.0
+        cli._CSI_OPEN = False
 
     def tearDown(self):
         from cs import cli
 
         cli._SGR_ENABLED = self._was
         cli._ESC_AT = 0.0
+        cli._CSI_OPEN = False
 
     def _event(self, screen, key):
         import curses
@@ -872,6 +874,43 @@ class SplitMouseReportTest(unittest.TestCase):
         self._event(screen, 27)
         self._event(screen, ord("["))
         self.assertIsNone(self._event(Screen(keys=[]), ord("[")))
+
+    def test_a_report_split_after_the_bracket_is_not_typing(self):
+        """The seam is not always behind the Esc. Here the terminal delivered
+        `ESC [` and then paused, so both bytes were spent before the parser
+        gave up and the tail arrived as ten printable keys — reported from a
+        live terminal as `nothing matches '<64;44;22M'`, a wheel scroll."""
+        self._event(Screen(keys=[ord("[")]), 27)
+        typed = [ch for ch in "<64;44;22M"
+                 if self._event(Screen(keys=[]), ord(ch)) is None]
+        self.assertEqual(typed, [])
+
+    def test_a_report_split_mid_digits_is_not_typing(self):
+        """A sequence can break at any byte, so the fix cannot key off which
+        byte arrives first — only off the parser saying it stopped mid-CSI."""
+        self._event(Screen(keys=[ord(c) for c in "[<6"]), 27)
+        typed = [ch for ch in "4;44;22M"
+                 if self._event(Screen(keys=[]), ord(ch)) is None]
+        self.assertEqual(typed, [])
+
+    def test_a_keystroke_behind_a_split_report_still_arrives(self):
+        """Swallowing past the report's final byte would cost a keypress,
+        which is a worse bug than the one being fixed."""
+        self._event(Screen(keys=[ord("[")]), 27)
+        screen = Screen(keys=[ord(c) for c in "64;44;22M"] + [ord("z")])
+        self._event(screen, ord("<"))
+        self.assertEqual(screen.getch(), ord("z"))
+
+    def test_a_less_than_typed_later_is_still_a_character(self):
+        """Mid-CSI widens what counts as a tail to any byte at all, so the
+        window is the only thing keeping real typing out of it."""
+        import time
+
+        from cs import cli
+
+        self._event(Screen(keys=[ord("[")]), 27)
+        cli._ESC_AT = time.monotonic() - (cli._ESC_ORPHAN_SECONDS + 0.1)
+        self.assertIsNone(self._event(Screen(keys=[]), ord("<")))
 
     def test_nothing_is_swallowed_when_the_mouse_is_off(self):
         """No reporting, no reports — so a '[' after Esc is only ever typing."""

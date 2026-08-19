@@ -1227,12 +1227,16 @@ def _sgr_report(screen, pending: list[int]) -> tuple[int, int, int, bool] | str 
             return None
         marker = _getch(screen)
         if marker != ord("<"):
-            _consume_sequence(screen, marker)
+            if not _consume_sequence(screen, marker):
+                _note_partial_sequence()
             return "consumed"
         digits = ""
         while True:
             char = _getch(screen)
-            if char == -1 or len(digits) > 24:
+            if char == -1:
+                _note_partial_sequence()
+                return "consumed"
+            if len(digits) > 24:
                 return "consumed"
             if char in (ord("M"), ord("m")):
                 pressed = char == ord("M")
@@ -1248,53 +1252,86 @@ def _sgr_report(screen, pending: list[int]) -> tuple[int, int, int, bool] | str 
     return button, column - 1, row - 1, pressed  # reported 1-based
 
 
-def _consume_sequence(screen, char: int) -> None:
-    """Swallow the rest of a CSI sequence, which ends on a byte in @…~."""
+def _consume_sequence(screen, char: int) -> bool:
+    """Swallow the rest of a CSI sequence, which ends on a byte in @…~.
+
+    False when the terminator has not arrived: -1 means nothing has been read
+    *yet*, which is not the same as the sequence being over. Treating the two
+    alike is what let the tail of a split report reach the caller as typing.
+    """
     for _ in range(24):
-        if char == -1 or 0x40 <= char <= 0x7E:
-            return
+        if 0x40 <= char <= 0x7E:
+            return True
+        if char == -1:
+            return False
         char = _getch(screen)
+    return True  # 24 bytes in, this is not a report — stop eating keys
 
 
-# How long after a bare Esc a CSI introducer is still read as that Esc's
-# sequence rather than as typing. A terminal splits a report across reads in
-# microseconds; a human cannot press Esc and then '[' inside a sixth of a
-# second, so nothing anyone actually types falls in here.
+# How long after the parser abandons a sequence its remaining bytes are still
+# read as that sequence rather than as typing. A terminal splits a report
+# across reads in microseconds; a human cannot press Esc and then the next
+# key inside a sixth of a second, so nothing anyone types falls in here.
 _ESC_ORPHAN_SECONDS = 0.15
 _ESC_AT = 0.0  # when a bare Esc was last let through to the caller
+_CSI_OPEN = False  # …and whether its sequence was already part-read
 
 
 def _note_bare_esc() -> None:
     """Remember that an Esc went out unaccompanied, so its tail can be spotted."""
-    global _ESC_AT
+    global _ESC_AT, _CSI_OPEN
     _ESC_AT = time.monotonic()
+    _CSI_OPEN = False
+
+
+def _note_partial_sequence() -> None:
+    """Remember that a sequence was abandoned part-read, mid-CSI.
+
+    The Esc and at least the '[' are already spent, so what lands next is the
+    middle of a report rather than its opening byte. `_orphaned_sequence`
+    swallows it whatever it starts with.
+    """
+    global _ESC_AT, _CSI_OPEN
+    _ESC_AT = time.monotonic()
+    _CSI_OPEN = True
 
 
 def _orphaned_sequence(screen, key: int) -> bool:
-    """True when this key opens a report whose Esc has already got out.
+    """True when this key continues a report the parser has already left.
 
-    `_sgr_report` waits a few milliseconds for the byte after an Esc and, if
-    nothing has arrived, rules the Esc a keypress. That is the right call for
-    a bare Esc and the wrong one for a mouse report the terminal happened to
-    split across two reads: the Esc is gone, and `[ < 0 ; 3 0 ; 1 2 M`
-    arrives afterwards as ten perfectly ordinary printable keys.
+    `_sgr_report` waits a few milliseconds for each byte of a report and, if
+    nothing has arrived, gives up. That is the right call for a bare Esc and
+    the wrong one for a report the terminal split across two reads: the bytes
+    already read are gone, and the rest arrives afterwards as perfectly
+    ordinary printable keys.
 
-    Every loop here types printable keys into its filter box, so the report
-    was landing there as text — which is what put ``nothing matches '[<'`` on
-    the landing screen after coming back from a report. Swallowing the tail
-    is what makes the Esc's own timing stop mattering.
+    Every loop here types printable keys into its filter box, so the tail was
+    landing there as text — which is what put ``nothing matches '[<'`` on the
+    landing screen, and ``nothing matches '<64;44;22M'`` when the split fell
+    one byte later. A sequence can break at **any** byte, so the seam is not
+    predictable: what makes it safe is that the parser says where it stopped.
+    After a bare Esc only a CSI introducer can continue it; once the '[' has
+    been read the next byte is mid-report and could be anything.
     """
-    global _ESC_AT
-    if not _SGR_ENABLED or key not in (ord("["), ord("O")):
+    global _ESC_AT, _CSI_OPEN
+    if not _SGR_ENABLED:
+        return False
+    if not _CSI_OPEN and key not in (ord("["), ord("O")):
         return False
     if time.monotonic() - _ESC_AT > _ESC_ORPHAN_SECONDS:
         return False
+    mid = _CSI_OPEN
     _ESC_AT = 0.0  # one tail per Esc
+    _CSI_OPEN = False
     screen.nodelay(True)
     try:
-        _consume_sequence(screen, _getch(screen))
+        # Mid-report, this key is itself part of the sequence; after a bare
+        # Esc it is only the introducer, and the sequence starts behind it.
+        done = _consume_sequence(screen, key if mid else _getch(screen))
     finally:
         screen.nodelay(False)
+    if not done:
+        _note_partial_sequence()  # it split again; keep swallowing
     return True
 
 
