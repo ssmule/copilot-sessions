@@ -177,7 +177,7 @@ happened, and is it finished?** is `cs show`. **What exactly was said?** is
 
 | | Answers | Carries |
 |---|---|---|
-| 📦 `cs show` (`v`/`o`) | *what happened, and what did it cost?* | what's still open, first and last request, what got done, what shipped — then spend by model, work split, files, **which skills and sub-agents**, risk, turn index |
+| 📦 `cs show` (`v`/`o`) | *what happened, and what did it cost?* | what's still open, first and last request, what got done, what shipped — then spend by model, work split, files, **which skills and sub-agents**, risk |
 | 📦 `cs show --short` | *just the story* | the top half of the above, and nothing else |
 | 💬 `cs read` (`t`) | *what was actually said?* | every turn, 👤 you and 🤖 Copilot, in full |
 
@@ -337,10 +337,12 @@ Lists keep their hanging indent, tables become aligned columns instead of raw
 ask, so scrolling tells you *what* you are looking at rather than how far in
 you are.
 
-There is no contents list here: that is the turn index `cs show` already
-prints, and a table of contents you have just read is only distance from the
-text. The index is where the turn numbers come from — it labels its columns and
-tells you the `--turn N` command to open one.
+There is no contents list here, and there is none on `cs show` either. A
+table of contents you have just read is only distance from the text, and the
+one `cs show` used to print was a third rendering of a list that page already
+shows the ends of — first request, last request — and that `cs show --asks`
+shows entire. The turn numbers are on the rules here; `cs show --asks` is the
+numbered list, and it tells you the `--turn N` command to open one.
 
 ### 🔍 `cs search` — reaches everything, ranked
 

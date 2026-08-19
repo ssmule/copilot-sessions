@@ -60,8 +60,7 @@ class ViewClarityTest(StoreTest):
             with self.subTest(section=section):
                 self.assertIn(section, short)
                 self.assertIn(section, full)
-        for section in ("How the work was done", "Models", "Files touched",
-                        "Conversation ·"):
+        for section in ("How the work was done", "Models", "Files touched"):
             with self.subTest(section=section):
                 self.assertNotIn(section, short)
                 self.assertIn(section, full)
@@ -100,11 +99,46 @@ class ViewClarityTest(StoreTest):
         self.assertNotIn("|---|", out)
         self.assertNotIn("**", out)
 
-    def test_the_turn_index_says_what_its_columns_are(self):
-        """A column of numbers you cannot act on is decoration."""
+    def test_the_page_does_not_re_list_the_conversation(self):
+        """`cs read` is the conversation, in full and both sides. The page
+        used to end in a turn index as well — a third rendering of a list it
+        already shows the ends of and `--asks` already shows entire — so on
+        a hundred-turn session the summary closed with a hundred lines of
+        truncated prompt."""
         _, out = self._run("show", "sess-alpha")
-        self.assertIn("turn · your request · reply size", out)
+        self.assertNotIn("Conversation ·", out)
+        self.assertNotIn("reply size", out)
+        # And the way to the conversation is still on the page.
+        self.assertIn("cs read sess-alpha", out)
+
+    def test_the_header_counts_turns_and_not_requests(self):
+        """A turn with no prompt is still a turn — it is compaction, or a
+        tool loop. The header says 'turns', so it counts them; `--asks`
+        says 'requests', so it drops the empties. The count behind the
+        header used to come from a query that pulled 2,000 characters of
+        every prompt purely to take its length."""
+        import sqlite3
+
+        store = Path(os.environ["COPILOT_HOME"]) / "session-store.db"
+        with sqlite3.connect(store) as writer:
+            writer.execute(
+                "INSERT INTO turns (session_id, turn_index, user_message,"
+                " assistant_response) VALUES ('sess-alpha', 9, '', 'compacted')"
+            )
+        _, out = self._run("show", "sess-alpha")
+        self.assertIn("3 turns", out)
+        _, asks = self._run("show", "sess-alpha", "--asks")
+        self.assertIn("Every request · 2", asks)
+
+    def test_the_numbered_list_says_how_to_open_a_turn(self):
+        """A column of numbers you cannot act on is decoration. `--asks` is
+        the only numbered list left, so it is where that has to be said."""
+        _, out = self._run("show", "sess-alpha", "--asks")
+        self.assertIn("Every request", out)
         self.assertIn("--turn N", out)
+        # Not on the page that has no numbers on it.
+        _, plain = self._run("show", "sess-alpha")
+        self.assertNotIn("--turn N", plain)
 
     def test_help_documents_the_options_the_views_accept(self):
         """--asks, --turn and the transcript alias were all undocumented."""

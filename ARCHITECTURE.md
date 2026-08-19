@@ -265,7 +265,7 @@ flowchart TD
     G --> R["Shipped ← session_refs"]
     R --> H{"--short?"}
     H -->|yes| E["stop"]
-    H -->|no| I["work split · models · files<br/>skills &amp; agents · turn index"]
+    H -->|no| I["work split · models · files<br/>skills &amp; agents"]
 ```
 
 The page runs **judgement first, then inventory**. That ordering is the whole

@@ -94,15 +94,32 @@ responsible for. Put a test next to the behaviour it describes:
 | File | Covers | Tests |
 |------|--------|-------|
 | `support.py` | Not a test file. The synthetic store and the fake curses screen every other file imports | — |
-| `test_core.py` | Listing, search, show, read, resume, export, and the flags that cut across them | 106 |
-| `test_views.py` | What a view may claim: clarity, restored state, quiet defaults, skill attribution | 46 |
-| `test_home.py` | The landing screen — menu rows, icons, banner, animation | 44 |
+| `test_core.py` | Listing, search, show, read, resume, export, and the flags that cut across them | 110 |
+| `test_config.py` | Hooks, MCP servers, instruction files, capability detection, and config that does not parse | 74 |
+| `test_home.py` | The landing screen — menu rows, icons, banner, animation | 51 |
+| `test_views.py` | What a view may claim: clarity, restored state, quiet defaults, skill attribution | 50 |
 | `test_governance.py` | Unattended runs, handoff chains, the credential audit and its masking corpus | 46 |
-| `test_config.py` | Hooks, MCP servers, instruction files, capability detection | 46 |
-| `test_reports.py` | Sorting, spend windows, efficiency and the machine-readable output | 38 |
-| `test_render.py` | Charts, themes, glyph fallback, cell widths, search snippets | 20 |
+| `test_reports.py` | Sorting, spend windows, efficiency and the machine-readable output | 42 |
+| `test_render.py` | Charts, themes, glyph fallback, cell widths, markdown shapes, search snippets | 31 |
+| `test_transcript.py` | How a conversation is set on the page: furniture, attribution, width | 27 |
+| `test_practice_rules.py` | Every `cs coach` rule, fired and silenced — one fixture each | 18 |
 | `test_practice.py` | Inferences drawn across a window of sessions (the unlisted Improve views) | 15 |
+| `test_surface.py` | Every command, run — against a full store, an empty one, and one from an older Copilot | 14 |
 | `test_security.py` | Hostile stored text — terminal control sequences that must never reach the screen | 2 |
+
+Three of those are structural rather than behavioural, and are the ones to
+keep working when you add something:
+
+* **`test_surface.py` reads the command list out of `cli._dispatch`.** A new
+  command is smoke-tested the day it is added, against all three stores — and
+  if it needs an argument, add it to that file's `ARGUMENTS` table or the
+  smoke test will run it bare and fail on the usage line.
+* **`test_practice_rules.py` fails until a new `coach` rule has a fixture**
+  that fires it and one that does not. Half the rules had never been executed
+  by any test before it existed.
+* **The credential corpus in `test_governance.py` must name every rule in
+  `redact._RULES`.** A pattern that stops matching is silent by construction:
+  the audit simply reports less, which reads as good news.
 
 Fixtures are imported as `from support import _build_store, Screen` — plain,
 not package-relative, because `unittest discover -s tests` puts `tests/` on

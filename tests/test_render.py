@@ -383,3 +383,114 @@ class SearchSnippetTest(unittest.TestCase):
         from cs import cli
 
         self.assertEqual(cli._hit_text("edit", "…/deep/notes.md"), "…/deep/notes.md")
+
+
+class FriendlyDayTest(unittest.TestCase):
+    """Dates in a listing: a weekday reads faster than an ISO string."""
+
+    def test_today_and_yesterday_are_named(self):
+        from datetime import date, timedelta
+
+        from cs import ui
+
+        today = date.today()
+        self.assertTrue(ui.friendly_day(today.isoformat()).startswith("Today · "))
+        yesterday = (today - timedelta(days=1)).isoformat()
+        self.assertTrue(ui.friendly_day(yesterday).startswith("Yesterday · "))
+
+    def test_this_week_is_a_weekday_and_older_is_a_date(self):
+        """A weekday only names a day unambiguously inside a week; past that
+        'Tuesday' is a question rather than an answer."""
+        from datetime import date, timedelta
+
+        from cs import ui
+
+        recent = (date.today() - timedelta(days=3))
+        self.assertIn(recent.strftime("%A"), ui.friendly_day(recent.isoformat()))
+        old = (date.today() - timedelta(days=60))
+        drawn = ui.friendly_day(old.isoformat())
+        self.assertNotIn(old.isoformat(), drawn)
+        self.assertIn(old.strftime("%b"), drawn)
+
+    def test_something_that_is_not_a_date_is_handed_back_unchanged(self):
+        """Fixture stamps have been 'x' before now, and `db.timeline` groups
+        on whatever the column holds."""
+        from cs import ui
+
+        self.assertEqual(ui.friendly_day("x"), "x")
+        self.assertEqual(ui.friendly_day(""), "")
+
+
+class MarkdownShapeTest(unittest.TestCase):
+    """The shapes an assistant reply actually uses, rendered for a terminal."""
+
+    def test_a_fenced_block_is_never_reflowed(self):
+        """Its alignment is the information."""
+        from cs import ui
+
+        code = "```\nif x:\n    do(y)\n```"
+        drawn = [re.sub(r"\x1b\[[0-9;]*m", "", line)
+                 for line in ui.markdown(code, 20)]
+        self.assertTrue(any(line.endswith("    do(y)") for line in drawn), drawn)
+
+    def test_an_indented_block_is_code_too(self):
+        """Four spaces is the older fence, and replies still use it."""
+        from cs import ui
+
+        drawn = ui.markdown("prose\n\n    x = 1\n", 40)
+        self.assertTrue(any("x = 1" in line for line in drawn))
+
+    def test_a_table_is_drawn_as_columns_and_not_as_pipes(self):
+        """Raw `| a | b |` never lines up: it was written for a renderer."""
+        from cs import ui
+
+        table = "| Page | Version |\n|---|---|\n| Home | v9 |\n| Deep | v10 |"
+        drawn = [re.sub(r"\x1b\[[0-9;]*m", "", line)
+                 for line in ui.markdown(table, 60)]
+        body = [line for line in drawn if "v9" in line or "v10" in line]
+        self.assertEqual(len(body), 2)
+        self.assertEqual({line.index("v") for line in body}, {body[0].index("v")})
+        self.assertFalse(any("|" in line for line in drawn), drawn)
+
+    def test_a_table_wider_than_the_window_folds_rather_than_overruns(self):
+        """A narrow column carries a key or a status; the prose one folds."""
+        from cs import ui
+
+        table = ("| Key | Notes |\n|---|---|\n"
+                 "| K1 | " + "word " * 40 + "|")
+        for width in (30, 46, 72):
+            with self.subTest(width=width):
+                for line in ui.markdown(table, width):
+                    plain = re.sub(r"\x1b\[[0-9;]*m", "", line)
+                    self.assertLessEqual(ui.cells(plain), width + 4, plain)
+
+    def test_a_table_with_only_a_divider_draws_nothing(self):
+        from cs import ui
+
+        self.assertEqual(ui.markdown("|---|---|", 40), [])
+
+    def test_a_heading_survives_a_reply_that_is_all_bold(self):
+        """`**` spans use bold too, so bold alone cannot mark a section."""
+        from cs import ui
+
+        drawn = ui.markdown("## Section\n\n**loud** words", 40)
+        self.assertNotIn("#", "".join(drawn))
+        self.assertNotIn("**", "".join(drawn))
+
+    def test_a_bullet_wraps_under_itself_rather_than_back_to_the_margin(self):
+        from cs import ui
+
+        drawn = [re.sub(r"\x1b\[[0-9;]*m", "", line)
+                 for line in ui.markdown("- " + "word " * 30, 40)]
+        self.assertGreater(len(drawn), 1)
+        hang = len(drawn[1]) - len(drawn[1].lstrip())
+        self.assertEqual(hang, drawn[0].index("word"))
+
+    def test_styling_survives_a_line_break_in_the_middle_of_it(self):
+        """Styling is applied after wrapping, so a `**span**` broken over two
+        lines no longer matches its own regex — which is how raw asterisks
+        used to reach the screen."""
+        from cs import ui
+
+        drawn = ui.markdown("**" + "emphatic words " * 8 + "**", 30)
+        self.assertNotIn("**", "".join(drawn))

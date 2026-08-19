@@ -6,7 +6,7 @@ Written to be picked up on a different machine. Setup lives in
 otherwise have to rediscover — what changed, what was decided and why, and
 what is deliberately left undone.
 
-**State at handover:** `main`, working tree clean, pushed, CI green. 386 tests,
+**State at handover:** `main`, working tree clean, pushed, CI green. 478 tests,
 all passing. Python 3.10+, zero runtime dependencies. **Public, released as
 v1.0.0, and installable with `brew install ssmule/tap/copilot-sessions`.**
 
@@ -17,7 +17,7 @@ it, and the previous handover spent its whole life one commit out of date.
 ```bash
 git clone https://github.com/ssmule/copilot-sessions.git
 cd copilot-sessions
-python3 -m unittest discover -s tests -q     # expect: Ran 386 tests ... OK
+python3 -m unittest discover -s tests -q     # expect: Ran 478 tests ... OK
 pipx install 'ruff==0.15.22' && ruff check cs tests   # expect: All checks passed!
 ```
 
@@ -480,6 +480,56 @@ token. Relatedly, `cs resume` ends in `os.execv`, which inherits the
 environment unchanged — it cannot be the cause of an auth failure, so an
 auth error there is always upstream.
 
+**Three tests are structural, and they are the ones that keep the rest
+honest.** Each was added because a whole body of code had never been executed
+by any test, which is the state in which code stops working silently:
+
+- **`tests/test_surface.py` reads the command list out of `cli._dispatch`
+  with `ast`** and runs every command — against the fixture store, against an
+  emptied one, and against a store carrying only `sessions` and `turns`. That
+  last one is the point: the schema is Copilot's, and a release that has not
+  shipped `assistant_usage_events` is the likeliest way this breaks on
+  somebody else's machine. The same file hashes the store before and after
+  every command, which is how the README's read-only guarantee is now a test
+  rather than a sentence. A new command needing an argument goes in that
+  file's `ARGUMENTS` table or the smoke test runs it bare.
+- **`tests/test_practice_rules.py` fails until a new `coach` rule has a
+  fixture** that fires it and one that does not. Seventeen of the twenty-two
+  rules had never run. A rule that goes quiet does not look broken — the
+  report just gets shorter, which reads as good news.
+- **The credential corpus in `test_governance.py` must name every rule in
+  `redact._RULES`.** Nine had no sample. Same failure mode, worse
+  consequence.
+
+**`cs show` no longer ends in a turn index, and that changes a documented
+rule.** `_render_transcript` carries a comment saying `read` prints no
+contents list *because* `show` has the index. That reasoning outlived the
+index: the block was a third rendering of one list — the page prints the first
+and last request above it, `--asks` prints every one numbered, and `read` is
+the conversation. What it uniquely carried, the `cs read <id> --turn N`
+command, moved to the `--asks` block, which is the only numbered list left.
+`db.session_turns` went with it (nothing else called it) and
+`db.session_turn_count` replaced it: the page was pulling 2,000 characters of
+every prompt in the session so it could take `len()` of the result, and
+`--short` paid for that too. The count is deliberately *not* filtered — a turn
+with no prompt is still a turn, and the header says turns while `--asks` says
+requests.
+
+**The transcript is set with a rail, not with rules.** `_render_transcript`
+drew three full-width rules per turn — its own and one per speaker — plus a
+lone grey line underneath carrying the size. All the same weight, so nothing
+ranked. It is now one rule (`ui.rule(..., note=…)` puts the time and size on
+its right-hand end) and `ui.spine()` runs a coloured rail down each speaker's
+block. Two things follow that are not obvious:
+
+- **A heading inside a reply cannot use the accent *bar*.** The bar wants the
+  two columns to the left of the text and the rail is already there, so
+  headings are set in the accent colour instead. Bold alone does not work: a
+  reply is already full of `**bold**`.
+- **`spine()` strips the indent `markdown` applied rather than adding to the
+  margin**, so a transcript and a report still line up when read one after
+  the other. Hand it lines with a different indent and it says so.
+
 **Tooling:** tests are **unittest, not pytest**. **Run `ruff` before every
 commit** — `pipx install 'ruff==0.15.22' && ruff check cs tests`, the exact
 version CI pins. This used to say ruff was CI's problem, and the result was
@@ -550,6 +600,9 @@ dashboard.
 | `cs/export.py` | `--json` / `--csv` — the readings without the drawing |
 | `tests/support.py` | The synthetic store and the fake curses screen; every test file imports it |
 | `tests/test_*.py` | Split by subject — see the table in `CONTRIBUTING.md` |
+| `tests/test_surface.py` | Every command run against three shapes of store, plus the read-only guarantee |
+| `tests/test_practice_rules.py` | One fixture per `coach` rule, and the guard that a new rule needs one |
+| `tests/test_transcript.py` | How a conversation is set on the page |
 | `README.md` | The landing page: what `cs` is, the home screen, six capability sections, then install and the command table |
 | `docs/GUIDE.md` | The manual the README used to be — every view, every key, what each report is for. "Every view earns its place" explains what is unlisted and why |
 | `ARCHITECTURE.md` | Why the code is shaped the way it is |
@@ -569,7 +622,7 @@ worse than none — it sends a reader confidently to the wrong function.
 ## 7 · Verify the handover on the new machine
 
 ```bash
-python3 -m unittest discover -s tests -q          # Ran 386 tests ... OK
+python3 -m unittest discover -s tests -q          # Ran 478 tests ... OK
 ruff check cs tests                               # All checks passed!
 CS_PAGER=cat COLUMNS=92 python3 -m cs efficiency  # findings only, ends with --why hint
 CS_PAGER=cat COLUMNS=92 python3 -m cs efficiency --why   # ~11 lines longer

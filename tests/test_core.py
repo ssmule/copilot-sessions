@@ -314,7 +314,7 @@ class CSTest(StoreTest):
 
         # The inventory is what --short trades away, and the reason to
         # ever type the long form.
-        for section in ("Files touched", "Models", "Conversation ·"):
+        for section in ("Files touched", "Models", "How the work was done"):
             with self.subTest(section=section):
                 self.assertIn(section, show)
                 self.assertNotIn(section, brief)
@@ -1244,7 +1244,7 @@ class CSTest(StoreTest):
     def test_show_by_id(self):
         code, out = self._run("show", "sess-alpha")
         self.assertEqual(code, 0)
-        self.assertIn("Conversation", out)
+        self.assertIn("First request", out)
         self.assertIn("make a portal", out)
 
     def test_credits_shown(self):

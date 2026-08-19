@@ -406,6 +406,61 @@ class ContextTest(StoreTest):
         self.assertEqual([i.kind for i in found["items"] if i.scope == "project"],
                          ["skills"])
 
+    def test_a_skill_directory_with_no_defining_file_is_not_counted(self):
+        """A folder that happens to sit in the skills directory is not a
+        skill, and counting it would report a stray as configured context."""
+        from cs import context
+
+        stray = self.project / ".github" / "skills" / "notes"
+        stray.mkdir(parents=True)
+        (stray / "scratch.txt").write_text("nothing\n")
+        found = context.audit(self.project)
+        self.assertEqual([i.kind for i in found["items"] if i.scope == "project"],
+                         [])
+
+    def test_a_skill_documented_in_a_readme_is_still_one_skill(self):
+        """SKILL.md is the convention; README.md is what people write."""
+        from cs import context
+
+        skill = self.project / ".copilot" / "skills" / "deploy"
+        skill.mkdir(parents=True)
+        (skill / "README.md").write_text("# Deploy\n")
+        found = context.audit(self.project)
+        self.assertEqual([i.kind for i in found["items"] if i.scope == "project"],
+                         ["skills"])
+
+    def test_a_dotfile_is_not_context(self):
+        """`.DS_Store` and editor droppings sit in these directories, and a
+        count that includes them is a count nobody trusts twice."""
+        from cs import context
+
+        agents = self.project / ".github" / "agents"
+        agents.mkdir(parents=True)
+        (agents / ".hidden.md").write_text("# Not an agent\n")
+        found = context.audit(self.project)
+        self.assertEqual([i.kind for i in found["items"] if i.scope == "project"],
+                         [])
+
+    def test_no_skills_anywhere_is_its_own_gap(self):
+        from cs import context
+
+        found = context.audit(self.project)
+        self.assertIn("No skills anywhere",
+                      [gap[1] for gap in context.gaps(found)])
+
+    def test_a_hook_file_that_does_not_parse_is_a_high_gap(self):
+        """Invalid JSON means those hooks never run, silently — which is the
+        one hook failure a report has to shout about."""
+        from cs import context
+
+        hooks_dir = Path(os.environ["COPILOT_HOME"]) / "hooks"
+        hooks_dir.mkdir(exist_ok=True)
+        (hooks_dir / "broken.json").write_text("{oops")
+        gaps = {gap[1]: gap for gap in context.gaps(context.audit(self.project))}
+        broken = [key for key in gaps if "do not parse" in key]
+        self.assertEqual(len(broken), 1)
+        self.assertEqual(gaps[broken[0]][0], "high")
+
     def test_the_report_runs_and_names_both_scopes(self):
         code, out = self._run("context")
         self.assertEqual(code, 0)
@@ -622,3 +677,167 @@ class CapabilityTest(unittest.TestCase):
             self.assertFalse(any(able.values()), able)
         finally:
             conn.close()
+
+
+class MalformedConfigTest(StoreTest):
+    """Config files that are not the shape the reader hoped for.
+
+    Hook and MCP files are Copilot's format, not this tool's, and they are
+    hand-edited far more often than they are generated. Every branch here is
+    a defensive one that no test had ever taken — which is the state in which
+    a defensive branch quietly stops working, because the only way to find
+    out is for somebody's `cs hooks` to traceback on their own laptop.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.home = Path(os.environ["COPILOT_HOME"])
+        self.hooks = self.home / "hooks"
+        self.hooks.mkdir()
+
+    def _write(self, name: str, text: str) -> Path:
+        path = self.hooks / name
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def _problems(self) -> dict[str, str]:
+        from cs import hooks
+
+        return {path.name: reason for path, reason in hooks.load()[1]}
+
+    # ── Hook files ───────────────────────────────────────────────────
+
+    def test_a_hook_file_holding_a_list_is_named_not_ignored(self):
+        self._write("array.json", '["preToolUse"]')
+        self.assertIn("does not hold a JSON object", self._problems()["array.json"])
+
+    def test_a_hooks_key_that_is_not_an_object_is_named(self):
+        self._write("odd.json", '{"hooks": ["preToolUse"]}')
+        self.assertIn("not an object", self._problems()["odd.json"])
+
+    def test_a_hook_file_that_cannot_be_decoded_is_named(self):
+        """A file saved in the wrong encoding runs nothing, silently."""
+        (self.hooks / "binary.json").write_bytes(b'{"hooks": {"a": "\xff\xfe"}}')
+        self.assertIn("could not be read", self._problems()["binary.json"])
+
+    def test_an_event_declared_as_something_other_than_a_list_is_skipped(self):
+        from cs import hooks
+
+        self._write("scalar.json", '{"hooks": {"preToolUse": "run.sh"}}')
+        self.assertEqual(hooks.load()[0], [])
+
+    def test_a_command_that_is_blank_declares_no_hook(self):
+        from cs import hooks
+
+        self._write("blank.json", '{"hooks": {"preToolUse": [{"command": "  "}]}}')
+        self.assertEqual(hooks.load()[0], [])
+
+    def test_a_non_object_inside_an_event_list_is_skipped(self):
+        from cs import hooks
+
+        self._write("mixed.json",
+                    '{"hooks": {"preToolUse": ["oops", {"command": "echo hi"}]}}')
+        configured = hooks.load()[0]
+        self.assertEqual([h["command"] for h in configured], ["echo hi"])
+
+    def test_an_unknown_event_sorts_after_every_known_one(self):
+        """Copilot adds events; an unrecognised one must land at the end of
+        the lifecycle rather than at the front of it."""
+        from cs import hooks
+
+        self.assertGreater(hooks.order("someFutureEvent"),
+                           hooks.order(hooks.EVENTS[-1]))
+
+    def test_a_command_with_an_unbalanced_quote_is_still_read(self):
+        """shlex refuses it; a hook that cannot be lexed is still a hook,
+        and refusing to report it is the one unhelpful answer."""
+        from cs import hooks
+
+        self._write("quote.json",
+                    '{"hooks": {"preToolUse": [{"command": "echo \\"oops"}]}}')
+        self.assertEqual(len(hooks.load()[0]), 1)
+
+    def test_a_redirect_is_not_mistaken_for_a_missing_script(self):
+        """`… > /dev/null` names a path that is not a program, and calling
+        it missing would put a red flag on a working hook."""
+        from cs import hooks
+
+        self._write("redirect.json",
+                    '{"hooks": {"preToolUse":'
+                    ' [{"command": "echo hi > /dev/null"}]}}')
+        self.assertFalse(hooks.load()[0][0]["missing"])
+
+    def test_a_long_path_is_shortened_to_the_part_that_identifies_it(self):
+        """Truncating from the right left every row reading the same prefix."""
+        from cs import hooks
+
+        drawn = hooks.short(f"{Path.home()}/deeply/nested/place/guard.py")
+        self.assertIn("guard.py", drawn)
+        self.assertNotIn(str(Path.home()), drawn)
+
+    # ── MCP files ────────────────────────────────────────────────────
+
+    def test_an_mcp_file_holding_a_list_is_named(self):
+        from cs import mcp
+
+        (self.home / "mcp-config.json").write_text("[1, 2, 3]")
+        problems = {path.name: reason for path, reason in mcp.load()[1]}
+        self.assertIn("does not hold a JSON object", problems["mcp-config.json"])
+
+    def test_an_mcp_servers_key_that_is_not_an_object_is_named(self):
+        from cs import mcp
+
+        (self.home / "mcp-config.json").write_text('{"mcpServers": []}')
+        problems = {path.name: reason for path, reason in mcp.load()[1]}
+        self.assertIn("not an object", problems["mcp-config.json"])
+
+    def test_an_mcp_file_that_cannot_be_decoded_is_named(self):
+        from cs import mcp
+
+        (self.home / "mcp-config.json").write_bytes(b'{"mcpServers": "\xff\xfe"}')
+        problems = {path.name: reason for path, reason in mcp.load()[1]}
+        self.assertIn("could not be read", problems["mcp-config.json"])
+
+    def test_a_login_in_an_endpoint_url_never_reaches_the_screen(self):
+        """A token handed to an MCP endpoint as userinfo is still a token,
+        and a report that prints it has created what it was auditing for."""
+        from cs import mcp
+
+        (self.home / "mcp-config.json").write_text(json.dumps({
+            "mcpServers": {
+                "remote": {"type": "http",
+                           "url": "https://user:s3cr3ttoken@api.example.com/mcp"}
+            }
+        }))
+        servers, _problems = mcp.load()
+        endpoint = servers[0]["endpoint"]
+        self.assertNotIn("s3cr3ttoken", endpoint)
+        self.assertNotIn("user", endpoint)
+        self.assertIn("api.example.com", endpoint)
+
+    def test_a_tools_list_that_is_not_a_list_is_read_as_everything(self):
+        """The safe reading: 'I cannot tell what this restricts' has to come
+        out as unrestricted, never as an empty allow-list."""
+        from cs import mcp
+
+        (self.home / "mcp-config.json").write_text(json.dumps({
+            "mcpServers": {"odd": {"command": "true", "tools": "all"}}
+        }))
+        servers, _problems = mcp.load()
+        self.assertTrue(servers[0]["all_tools"])
+
+    def test_a_local_server_with_no_command_is_reported_missing(self):
+        from cs import mcp
+
+        (self.home / "mcp-config.json").write_text(json.dumps({
+            "mcpServers": {"empty": {"type": "local"}}
+        }))
+        servers, _problems = mcp.load()
+        self.assertTrue(servers[0]["missing"])
+
+    def test_a_parked_mcp_config_beside_the_real_one_is_found(self):
+        from cs import mcp
+
+        (self.home / "mcp-config.json").write_text('{"mcpServers": {}}')
+        (self.home / "mcp-config.json.bak").write_text("{}")
+        self.assertIn("mcp-config.json.bak", [p.name for p in mcp.parked()])

@@ -7,8 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The transcript (`cs read`, and `t` from any listing) is set differently.
+  Each turn drew three full-width rules — its own, and one per speaker — all
+  the same weight, plus a lone line of grey underneath carrying the size. A
+  turn now opens on one rule that carries the ask at one end and the time and
+  size at the other, and each speaker's words run beside a coloured rail so
+  who-said-what survives scrolling. Section headings inside a reply are set in
+  the accent rather than in bold, which a reply full of `**bold**` already
+  uses, and a blockquote is marked rather than left with its `>`.
+- `ui.rule()` takes a `note` that rides its right-hand end, and `ui.spine()`
+  is new — both are shared primitives, so any view can be set this way.
+- The turn index has gone from `cs show`. It was a third rendering of the same
+  list: the page already prints the first and last request, `--asks` prints
+  every one of them numbered, and `cs read` is the conversation itself. On a
+  hundred-turn session the summary closed with a hundred lines of truncated
+  prompt. `--asks` now carries the `--turn N` command the index used to.
+- `cs show` and `cs brief` no longer read 2,000 characters of every prompt in
+  the session in order to count them.
+
 ### Fixed
 
+- A `session-store.db` that is not a database — a truncated download, a file
+  restored from the wrong backup, a store mid-write — produced a raw
+  `sqlite3.DatabaseError` traceback instead of the sentence every other bad
+  `COPILOT_HOME` gets.
+- The `credentials masked · CS_REDACT=0 …` line in every session footer was
+  the one fixed-width string on an otherwise width-aware page, and ran off any
+  window under about fifty columns. It shortens now.
+- The speaker label put the name in a different column depending on
+  `CS_GLYPHS`, because the emoji marks are two cells wide and their plain
+  forms are one.
 - Installing on Python 3.9 no longer gets as far as running. `pip` honours
   `requires-python`, but `install.sh` and `bin/cs` bypass pip, and every module
   imports `annotations` from `__future__` — so an old interpreter used to start

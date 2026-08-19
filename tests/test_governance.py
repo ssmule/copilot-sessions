@@ -416,20 +416,57 @@ class GovernanceTest(StoreTest):
                 "-----END PGP PRIVATE KEY BLOCK-----",
             "azure-storage-key":
                 "AccountKey=" "abcdefgh1234567890ABCDEFGH1234567890abcdefgh12==",  # gitleaks:allow
+            # The nine below had a rule in `redact._RULES` and no sample here,
+            # so nothing ever ran them. A pattern that stops matching is
+            # silent by construction: the audit simply reports fewer findings,
+            # which reads as good news.
+            "github-pat":
+                "github_pat_" "11ABCDEFG0abcdefghijklmnopqrstuvwxyz012345",  # gitleaks:allow
+            "aws-key-id": "AKIA" "IOSFODNN7EXAMPLE",  # gitleaks:allow
+            "slack-token": "xoxb-" "123456789012-1234567890123-abcdEFGH",  # gitleaks:allow
+            "google-api-key":
+                "AIza" "SyA0123456789abcdefghijklmnopqrstuvw",  # gitleaks:allow
+            "api-key": "sk-ant-" "api03abcdefghijklmnopqrstuvwxyz0123",  # gitleaks:allow
+            "azure-sas": "sig=" "abcdefghijklmnopqrstuvwxyz0123456789%2F",  # gitleaks:allow
+            "jwt":
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."  # gitleaks:allow
+                "eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r",
+            "bearer-token":
+                "Authorization: Bearer " "abcdefghijklmnopqrstuvwxyz0123",  # gitleaks:allow
+            "url-credentials":
+                "postgres://app:" "hunter2secret" "@db.internal:5432/prod",  # gitleaks:allow
+            # Both of these are exercised elsewhere in this file, on a stored
+            # session rather than on a string. They are here as well because
+            # the completeness guard below is only worth having if it covers
+            # every rule — an exception list is a place for the next one to hide.
+            "github-token": "ghp_" "B1cdefghijklmnopqrstuvwxyz0123456789",  # gitleaks:allow
+            "private-key":
+                "-----BEGIN RSA PRIVATE KEY-----\n"  # gitleaks:allow
+                "MIIEowIBAAKCAQEAmZ1nOtBcdefghijkl\n"
+                "-----END RSA PRIVATE KEY-----",
         }
         for kind, sample in corpus.items():
             with self.subTest(kind=kind):
                 found = redact.findings(sample)
                 self.assertIn(kind, [k for k, _ in found], f"missed: {sample[:40]}")
-                self.assertEqual(redact.severity(kind),
-                                 "high" if kind == "basic-auth" else "critical")
-                # And the value never survives the masker.
+                self.assertIn(redact.severity(kind), redact.RANK)
+                # And the value never survives the masker. Asserted whole:
+                # a rule that keeps a documented prefix still has to have
+                # replaced everything after it.
                 masked = redact.redact(sample)
+                self.assertNotIn(sample, masked)
                 for secret in ("ABCDEFGHIJ1234567890", "XXXXXXXXXXXXXXXXXXXXXXXX",
                                "51H8abcdefghijklmnopqrstuvwxyz0123",
+                               "hunter2secret", "IOSFODNN7EXAMPLE",
                                "YWRtaW46c3VwZXJzZWNyZXQxMjM"):
                     if secret in sample:
                         self.assertNotIn(secret, masked)
+        # The guard that keeps this list honest as rules are added.
+        self.assertEqual(
+            {kind for kind, _ in redact._RULES} - set(corpus), set(),
+            "a credential rule with no sample is a rule no test has run",
+        )
+        self.assertEqual(set(corpus) - {kind for kind, _ in redact._RULES}, set())
         short = "Authorization: Basic dXNlcjpwYXNz"
         self.assertIn("basic-auth", [kind for kind, _ in redact.findings(short)])
         self.assertNotIn("dXNlcjpwYXNz", redact.redact(short))
