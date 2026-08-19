@@ -6,8 +6,9 @@ Written to be picked up on a different machine. Setup lives in
 otherwise have to rediscover — what changed, what was decided and why, and
 what is deliberately left undone.
 
-**State at handover:** `main`, working tree clean, pushed, CI green. 384 tests,
-all passing. Python 3.10+, zero runtime dependencies.
+**State at handover:** `main`, working tree clean, pushed, CI green. 386 tests,
+all passing. Python 3.10+, zero runtime dependencies. **Public, released as
+v1.0.0, and installable with `brew install ssmule/tap/copilot-sessions`.**
 
 No SHA is quoted here on purpose: a file cannot name the commit that contains
 it, and the previous handover spent its whole life one commit out of date.
@@ -16,7 +17,7 @@ it, and the previous handover spent its whole life one commit out of date.
 ```bash
 git clone https://github.com/ssmule/copilot-sessions.git
 cd copilot-sessions
-python3 -m unittest discover -s tests -q     # expect: Ran 384 tests ... OK
+python3 -m unittest discover -s tests -q     # expect: Ran 386 tests ... OK
 pipx install 'ruff==0.15.22' && ruff check cs tests   # expect: All checks passed!
 ```
 
@@ -24,24 +25,45 @@ pipx install 'ruff==0.15.22' && ruff check cs tests   # expect: All checks passe
 
 ## 1 · Pick up here
 
-Everything asked for is shipped, and the repository is being prepared for a
-public release. Nothing is half-finished: no branch to resume, no failing
-test, no `TODO` left in the code.
+Everything asked for is shipped and **the repository is public**: released as
+`v1.0.0`, served by a public Homebrew tap, CI green. Nothing is half-finished:
+no branch to resume, no failing test, no `TODO` left in the code.
 
 There is no queued feature. Multi-device was the one outstanding body of work
 and it has since been **withdrawn** — see
 [§5](#5--the-work-that-was-withdrawn) for what was learned before it was, which
 is worth keeping even though the code was never written.
 
+**Releasing is one action: publish a GitHub Release.** The tap follows
+`releases/latest` and rewrites its own formula, so a tag without a Release
+moves nothing and brew users stay where they are. See
+[§1a](#1a--why-there-is-only-one-commit).
+
 Open, none of it code:
 
-- **The history is one commit, and the repository was recreated.** Both are
-  done; see [§1a](#1a--why-there-is-only-one-commit). What is left is a single
-  decision: **flipping the repository public**. Nothing technical blocks it.
+- **Two account settings only the owner can make**, and they are the safety
+  net that would have caught the leak in [§1a](#1a--why-there-is-only-one-commit)
+  before it was published rather than after. Set the account email to private,
+  and tick *Block command line pushes that expose my email* — that switch
+  rejects the push instead of discovering it later. Separately, the signing
+  key's UID still resolves to an employer address on a keyserver; nothing is
+  embedded in any git object, but a personal key would close it.
 - **Beads no longer syncs to this remote.** Its `refs/dolt/data` chunks
   carried an employer address in raw bytes, so the refs were deleted rather
   than published — see [§1a](#1a--why-there-is-only-one-commit) before turning
   sync back on.
+- **"Agents" now means two things.** The Reference row and `cs profiles` mean
+  *agents you have defined on disk*; the Measure row and `cs agents` mean
+  *sub-agents that ran*. Renaming the second one was offered and not answered.
+- **`cs help` is still the one plain view.** It is a single 125-line f-string
+  in `cmd_help` styled with `BOLD` and `DIM`, hard-wrapped at 78 columns and
+  not routed through the pager, so it matches nothing else. A redesign was
+  asked for and never started. Approach: `ui.rule`/`heading`/`field`/
+  `menu_icon`, width-aware, paged — preserving every line currently in it.
+- **The Improve group and Working days are commented out** of the menu while
+  `cs coach`, `cs rhythm`, `cs context` and `cs timeline` all still run. The
+  README marks them *Unlisted*, which is accurate. Decide whether they come
+  back or the commented rows eventually go.
 - **"Agents" now means two things.** The Reference row and `cs profiles` mean
   *agents you have defined on disk*; the Measure row and `cs agents` mean
   *sub-agents that ran*. Renaming the second one was offered and not answered.
@@ -158,6 +180,7 @@ of it, because each piece fails silently:
   and hard-reset, or the next push restores exactly what was deleted.
 
 
+**The Homebrew tap had the same problem, and was rebuilt the same way.**
 `ssmule/homebrew-tap` (public) serves `brew install ssmule/tap/copilot-sessions`.
 Its old history tracked a beads database carrying the work address in twelve
 objects, so it was backed up, rebuilt as a single signed commit and the
@@ -186,6 +209,26 @@ gone. Two consequences worth knowing:
   lead with the long form. The escape hatch is `brew trust ssmule/tap`. Test
   install instructions from a genuinely untapped state or this stays invisible:
   once a machine has installed the formula the two-step appears to work.
+- **A rewrite of this repository breaks the formula.** Every tree changes, so
+  the release tarball changes, so the pinned `sha256` describes a file that no
+  longer exists and *every install fails* with a checksum mismatch. The bump
+  workflow only reacts to a new release, not to a rewritten tag, so this one is
+  fixed by hand:
+  ```bash
+  curl -sL https://github.com/ssmule/copilot-sessions/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
+  ```
+- **A noisy install is usually the machine, not the formula.** Two warnings look
+  like defects in `cs` and are neither. Homebrew 6 lists *every* untrusted tap on
+  the machine on *any* install, so unrelated taps appear in the middle of yours —
+  `brew trust` the ones in use, untap the ones with nothing installed. And a
+  developer symlink on `PATH` (`~/.local/bin/cs` → the checkout) shadows the
+  Homebrew build, which Homebrew reports at the end of every install. Run
+  `python3 -m cs` from the checkout instead of symlinking, and the two cannot
+  diverge silently.
+- **`caveats` is the only post-install surface a formula controls.** Homebrew
+  owns its own output: a formula cannot animate an install or pace it, and
+  padding a four-second install with delay only makes it feel slower. Spend the
+  block on the first commands to type instead.
 
 ## 2 · What shipped, and the decision behind each
 
@@ -526,7 +569,7 @@ worse than none — it sends a reader confidently to the wrong function.
 ## 7 · Verify the handover on the new machine
 
 ```bash
-python3 -m unittest discover -s tests -q          # Ran 384 tests ... OK
+python3 -m unittest discover -s tests -q          # Ran 386 tests ... OK
 ruff check cs tests                               # All checks passed!
 CS_PAGER=cat COLUMNS=92 python3 -m cs efficiency  # findings only, ends with --why hint
 CS_PAGER=cat COLUMNS=92 python3 -m cs efficiency --why   # ~11 lines longer
