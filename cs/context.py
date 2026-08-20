@@ -39,7 +39,10 @@ _PROJECT = (
     ("instructions", ".github/instructions", r"\.instructions\.md$", False),
     ("prompts", ".github/prompts", r"\.prompt\.md$", True),
     ("prompts", "prompts", r"\.prompt\.md$", False),
-    ("skills", ".github/skills", r"(?:^|/)SKILL\.md$", True),
+    # Matched against the path relative to the search directory, so a glob
+    # can say "top level only" while still recursing. Every pattern here is
+    # suffix-anchored bar one, which is top-level by construction anyway.
+    ("skills", ".github/skills", r"^[^/]+\.md$|(?:^|/)SKILL\.md$", True),
     ("skills", ".copilot/skills", r"\.md$", False),
     ("agents", ".github/agents", r"\.md$", False),
     ("agents", ".copilot/agents", r"\.md$", False),
@@ -136,7 +139,8 @@ def _collect(root: Path, scope: str, patterns) -> list[Item]:
                 )
                 if entry.is_dir():
                     continue
-            elif not _is_file(entry) or not matcher.search(entry.as_posix()):
+            elif not _is_file(entry) or not matcher.search(
+                    entry.relative_to(target).as_posix()):
                 continue
             if item := _measure(entry, kind, scope, root):
                 found.append(item)
@@ -162,6 +166,62 @@ def audit(project: Path | None = None) -> dict:
         "hooks": configured,
         "hook_problems": problems,
     }
+
+
+def asset_dirs(kind: str, project: Path | None = None) -> list[Path]:
+    """Every place a skill or agent can live, project first then personal.
+
+    Read out of the same tables the audit walks, so an empty report cannot
+    name a search path the scan does not actually use.
+    """
+    root = (project or Path.cwd()).resolve()
+    return [
+        *(root / relative for k, relative, _glob, _r in _PROJECT if k == kind),
+        *(hooks.home() / relative for k, relative, _glob, _r in _PERSONAL
+          if k == kind),
+    ]
+
+
+def _asset_name(path: Path) -> str:
+    """What a skill or agent is called, from where it sits on disk.
+
+    A skill is either one file (`review.skill.md`) or a directory holding a
+    SKILL.md. In the second case the interesting name is the directory's —
+    naming them all "SKILL" would collapse every skill in a repository into
+    one row.
+    """
+    if path.name in ("SKILL.md", "README.md"):
+        return path.parent.name
+    name = path.name
+    for suffix in (".agent.md", ".skill.md", ".md"):
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
+def assets(kind: str, project: Path | None = None) -> list[tuple[str, str, Path]]:
+    """(name, scope, path) for every skill or agent on disk, sorted by name.
+
+    The same walk the audit uses, so `cs skills` and `cs context` cannot
+    disagree about what is installed — they used to, because this had its own
+    shorter list of directories that never mentioned `.github/skills`, which
+    is where a repository actually keeps them. Standing in a repo with twenty
+    skills, the inventory showed none of them.
+
+    Project wins a name collision: it is the copy your colleagues also get,
+    and the one Copilot loads.
+    """
+    root = (project or Path.cwd()).resolve()
+    found: dict[str, tuple[str, str, Path]] = {}
+    for scope, scope_root, patterns in (
+        ("personal", hooks.home(), _PERSONAL),
+        ("project", root, _PROJECT),   # second, so it overwrites personal
+    ):
+        for item in _collect(scope_root, scope, [p for p in patterns
+                                                 if p[0] == kind]):
+            found[_asset_name(item.path)] = (
+                _asset_name(item.path), scope, item.path)
+    return sorted(found.values())
 
 
 def instruction_paths(project: Path | None = None) -> list[Path]:

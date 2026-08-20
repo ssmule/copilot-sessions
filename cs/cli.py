@@ -2887,27 +2887,18 @@ def _print_assets_used(skills: list[tuple], agents: list[tuple], width: int,
 
 
 def _asset_dirs(kind: str) -> list[Path]:
-    """Where Copilot keeps skills / agents: personal first, then workspace."""
-    home = db.default_db_path().parent
-    return [home / kind, Path.cwd() / ".copilot" / kind]
+    """Where Copilot keeps skills / agents: project first, then personal."""
+    return context.asset_dirs(kind)
 
 
 def _asset_names(kind: str) -> list[tuple[str, Path]]:
-    """(name, path) for every skill or agent file on disk, deduped by name."""
-    found: dict[str, Path] = {}
-    for folder in _asset_dirs(kind):
-        if not folder.is_dir():
-            continue
-        for entry in sorted(folder.iterdir()):
-            if entry.name.startswith("."):
-                continue
-            name = entry.name
-            for suffix in (".agent.md", ".skill.md", ".md"):
-                if name.endswith(suffix):
-                    name = name[: -len(suffix)]
-                    break
-            found.setdefault(name, entry)
-    return sorted(found.items())
+    """(name, path) for every skill or agent on disk, deduped by name."""
+    return [(name, path) for name, _scope, path in context.assets(kind)]
+
+
+def _asset_scopes(kind: str) -> dict[str, str]:
+    """name -> 'project' or 'personal'. Which copy of a skill you are using."""
+    return {name: scope for name, scope, _path in context.assets(kind)}
 
 
 def cmd_assets(kind: str, name: str | None = None, limit: int = 25,
@@ -2995,7 +2986,14 @@ def _render_assets(kind: str, limit: int, column: str = "sessions",
 
     print(ui.rule(inner, f"{kind.title()} · {len(assets)} on disk"))
     print()
-    print(ui.field("configured", str(len(assets))))
+    scopes = _asset_scopes(kind)
+    project = sum(1 for name, _ in assets if scopes.get(name) == "project")
+    # Where they came from, not just how many. A bare total hid the bug this
+    # split was added for: standing in a repository with twenty skills of its
+    # own, the inventory only ever counted the personal ones.
+    print(ui.field("configured", f"{len(assets)}" + (
+        f"  ({project} from this repo · {len(assets) - project} personal)"
+        if project else "  (all personal)")))
     print(ui.field("referenced", f"{len(used)} appear in at least one session"))
     if ran:
         # The widths are pinned to the longest label in the block so the

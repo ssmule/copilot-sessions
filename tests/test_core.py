@@ -805,7 +805,10 @@ class CSTest(StoreTest):
 
         skills = Path(os.environ["COPILOT_HOME"]) / "skills"
         skills.mkdir()
+        # A directory skill carries its SKILL.md, the way every real one on
+        # disk does. A bare directory is not loadable, and no longer counts.
         (skills / "deploy-check").mkdir()
+        (skills / "deploy-check" / "SKILL.md").write_text("x")
         (skills / "commit.skill.md").write_text("x")
         (skills / "never-used.md").write_text("x")
 
@@ -824,6 +827,67 @@ class CSTest(StoreTest):
         # 'commit' appears in prose only, so it is not counted as a reference.
         self.assertIn("Never referenced", out)
         self.assertIn("never-used", out)
+
+    def test_skills_inventory_finds_the_repository_skills(self):
+        """A repo keeps skills in .github/skills, and they used to be invisible."""
+        personal = Path(os.environ["COPILOT_HOME"]) / "skills"
+        personal.mkdir()
+        (personal / "mine.skill.md").write_text("x")
+
+        project = Path(self._tmp.name) / "repo" / ".github" / "skills"
+        (project / "apigee").mkdir(parents=True)
+        (project / "apigee" / "SKILL.md").write_text("x")
+        (project / "review.skill.md").write_text("x")
+
+        here = os.getcwd()
+        os.chdir(project.parent.parent)
+        try:
+            code, out = self._run("skills")
+        finally:
+            os.chdir(here)
+        self.assertEqual(code, 0)
+        self.assertIn("3 on disk", out)
+        self.assertIn("2 from this repo", out)
+        self.assertIn("apigee", out)
+        self.assertIn("review", out)
+
+    def test_skills_inventory_prefers_the_repository_copy(self):
+        """Both scopes name it; the repo copy is the one Copilot loads."""
+        personal = Path(os.environ["COPILOT_HOME"]) / "skills"
+        personal.mkdir()
+        (personal / "commit.skill.md").write_text("personal")
+
+        project = Path(self._tmp.name) / "repo" / ".github" / "skills"
+        project.mkdir(parents=True)
+        (project / "commit.skill.md").write_text("project")
+
+        here = os.getcwd()
+        os.chdir(project.parent.parent)
+        try:
+            from cs import context
+            found = dict((n, (s, p)) for n, s, p in context.assets("skills"))
+        finally:
+            os.chdir(here)
+        self.assertEqual(found["commit"][0], "project")
+        self.assertEqual(found["commit"][1].read_text(), "project")
+
+    def test_skills_and_context_agree_on_the_project_count(self):
+        """The two views walk one table, so they cannot disagree again."""
+        (Path(os.environ["COPILOT_HOME"]) / "skills").mkdir()
+        project = Path(self._tmp.name) / "repo" / ".github" / "skills"
+        (project / "apigee").mkdir(parents=True)
+        (project / "apigee" / "SKILL.md").write_text("x")
+
+        here = os.getcwd()
+        os.chdir(project.parent.parent)
+        try:
+            from cs import context
+            assets = [s for _n, s, _p in context.assets("skills")]
+            audited = [i for i in context.audit()["items"]
+                       if i.kind == "skills" and i.scope == "project"]
+        finally:
+            os.chdir(here)
+        self.assertEqual(assets.count("project"), len(audited))
 
     def test_reference_matching_is_precision_first(self):
         """Skills are named `commit` and `status`; only strong evidence counts."""
