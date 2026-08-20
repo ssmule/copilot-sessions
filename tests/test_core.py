@@ -1925,6 +1925,82 @@ class CSTest(StoreTest):
         code, _ = self._run("resume", "nope")
         self.assertEqual(code, 1)
 
+    def test_resume_from_the_listing_comes_back_to_it(self):
+        """Enter on a row means "go and look at this session", not "close cs".
+
+        `cs resume` from the shell execv's, which is right there — nothing to
+        return to. The listing used to call the same function, so quitting
+        Copilot left the user at their shell with the app gone. The listing
+        needs a child process it can outlive.
+        """
+        from cs import cli
+
+        seen = {}
+        real_run, real_which = cli.subprocess.run, cli.shutil.which
+        cli.shutil.which = lambda name: "/b/copilot"
+        cli.subprocess.run = lambda cmd, **kw: seen.update(cmd=cmd, cwd=kw.get("cwd"))
+        try:
+            cli._resume_from_listing("sess-alpha")   # returns; does not exec
+        finally:
+            cli.subprocess.run, cli.shutil.which = real_run, real_which
+        self.assertEqual(seen["cmd"], ["/b/copilot", "--resume", "sess-alpha"])
+
+    def test_ctrl_c_out_of_copilot_returns_to_the_listing(self):
+        """The reported bug. Ctrl-C is how people close the Copilot CLI, and
+        the child has no process group of its own, so the terminal signals
+        `cs` as well. Letting that propagate would tear down the app the
+        keystroke was never aimed at."""
+        from cs import cli
+
+        def interrupted(cmd, **kw):
+            raise KeyboardInterrupt
+
+        real_run, real_which = cli.subprocess.run, cli.shutil.which
+        cli.shutil.which = lambda name: "/b/copilot"
+        cli.subprocess.run = interrupted
+        try:
+            cli._resume_from_listing("sess-alpha")   # must not raise
+        finally:
+            cli.subprocess.run, cli.shutil.which = real_run, real_which
+
+    def test_a_missing_copilot_does_not_close_the_app(self):
+        """Same rule one step earlier: from inside the listing a missing
+        binary is a message, not a reason to exit. From the shell it is still
+        an error, because there is no app to keep alive."""
+        from cs import cli
+
+        real_which, real_pause = cli.shutil.which, cli._pause
+        cli.shutil.which = lambda name: None
+        cli._pause = lambda message: True
+        try:
+            cli._resume_from_listing("sess-alpha")   # must not raise SystemExit
+            self.assertIsNone(cli._resume_target("sess-alpha"))
+        finally:
+            cli.shutil.which, cli._pause = real_which, real_pause
+
+    def test_the_listing_does_not_chdir_the_app(self):
+        """`cwd=` on the child, not `os.chdir` on us: the listing we come
+        back to has to resolve paths the way it drew them."""
+        from cs import cli
+
+        base = Path(self._tmp.name)
+        conn = sqlite3.connect(base / "session-store.db")
+        conn.execute("UPDATE sessions SET cwd = ? WHERE id = 'sess-alpha'", (str(base),))
+        conn.commit()
+        conn.close()
+
+        origin = os.getcwd()
+        seen = {}
+        real_run, real_which = cli.subprocess.run, cli.shutil.which
+        cli.shutil.which = lambda name: "/b/copilot"
+        cli.subprocess.run = lambda cmd, **kw: seen.update(cwd=kw.get("cwd"))
+        try:
+            cli._resume_from_listing("sess-alpha")
+        finally:
+            cli.subprocess.run, cli.shutil.which = real_run, real_which
+        self.assertEqual(seen["cwd"], str(base))    # the child moved
+        self.assertEqual(os.getcwd(), origin)       # and we did not
+
     def test_unknown_command(self):
         code, out = self._run("bogus")
         self.assertEqual(code, 1)
