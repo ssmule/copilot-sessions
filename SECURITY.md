@@ -5,7 +5,7 @@
 **Please do not open a public issue for a security problem.**
 
 Report it privately through
-[GitHub Security Advisories](https://github.com/ssmule/copilot-sessions/security/advisories/new).
+[GitHub Security Advisories](https://github.com/smaharajan/copilot-sessions/security/advisories/new).
 
 You can expect an acknowledgement within **3 working days** and an assessment
 within **10 working days**. If a fix is needed we will agree a disclosure date

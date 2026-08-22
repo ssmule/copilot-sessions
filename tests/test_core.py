@@ -2098,7 +2098,7 @@ class InterpreterFloorTest(StoreTest):
         message = str(caught.exception)
         self.assertIn("3.9.18", message)
         self.assertIn("Python 3.10 or newer", message)
-        self.assertIn("brew install ssmule/tap/copilot-sessions", message)
+        self.assertIn("brew install smaharajan/tap/copilot-sessions", message)
 
     def test_a_supported_interpreter_passes_through(self):
         self._run_guard((3, 10, 0))

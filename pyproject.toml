@@ -9,7 +9,7 @@ description = "A terminal application for your GitHub Copilot CLI sessions — l
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-authors = [{ name = "sommaharajan" }]
+authors = [{ name = "smaharajan" }]
 keywords = ["github-copilot", "cli", "sessions", "terminal", "tui"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -33,11 +33,11 @@ dependencies = []  # zero runtime dependencies — stdlib only
 cs = "cs.cli:run"
 
 [project.urls]
-Homepage = "https://github.com/ssmule/copilot-sessions"
-Documentation = "https://github.com/ssmule/copilot-sessions#readme"
-Source = "https://github.com/ssmule/copilot-sessions"
-Issues = "https://github.com/ssmule/copilot-sessions/issues"
-Changelog = "https://github.com/ssmule/copilot-sessions/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/smaharajan/copilot-sessions"
+Documentation = "https://github.com/smaharajan/copilot-sessions#readme"
+Source = "https://github.com/smaharajan/copilot-sessions"
+Issues = "https://github.com/smaharajan/copilot-sessions/issues"
+Changelog = "https://github.com/smaharajan/copilot-sessions/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 packages = ["cs"]

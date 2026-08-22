@@ -20,5 +20,5 @@ if sys.version_info < (3, 10):  # noqa: UP036
         f"cs needs Python 3.10 or newer, but this is Python "
         f"{'.'.join(str(n) for n in sys.version_info[:3])} at {sys.executable}.\n"
         f"The simplest fix is Homebrew, which brings its own Python:\n"
-        f"    brew install ssmule/tap/copilot-sessions"
+        f"    brew install smaharajan/tap/copilot-sessions"
     )

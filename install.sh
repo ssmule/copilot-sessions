@@ -11,7 +11,7 @@ TARGET_DIR="${1:-$HOME/.local/bin}"
 command -v python3 >/dev/null 2>&1 || { echo "error: python3 not found"; exit 1; }
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' || {
   echo "error: cs needs Python 3.10+, found $(python3 -V 2>&1) at $(command -v python3)"
-  echo "       Homebrew brings its own: brew install ssmule/tap/copilot-sessions"
+  echo "       Homebrew brings its own: brew install smaharajan/tap/copilot-sessions"
   exit 1
 }
 

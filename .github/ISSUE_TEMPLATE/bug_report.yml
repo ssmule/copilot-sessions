@@ -9,7 +9,7 @@ body:
 
         **If this is a security problem — a credential reaching the screen
         unmasked, or escape sequences from stored text — stop here** and use
-        [SECURITY.md](https://github.com/ssmule/copilot-sessions/blob/main/SECURITY.md)
+        [SECURITY.md](https://github.com/smaharajan/copilot-sessions/blob/main/SECURITY.md)
         instead. Those are reported privately.
 
   - type: textarea

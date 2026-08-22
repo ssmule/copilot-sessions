@@ -8,7 +8,7 @@ bar for changes is "does it earn its complexity".
 Python 3.10+, no dependencies.
 
 ```bash
-git clone https://github.com/ssmule/copilot-sessions.git
+git clone https://github.com/smaharajan/copilot-sessions.git
 cd copilot-sessions
 python -m unittest discover -s tests     # tests use a synthetic store
 pipx install ruff && ruff check cs tests # lint

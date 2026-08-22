@@ -195,4 +195,4 @@ only.
   masked at the render edge in `cs/redact.py`, and terminal control sequences
   and row-breaking characters are stripped before anything is drawn.
 
-[1.0.0]: https://github.com/ssmule/copilot-sessions/releases/tag/v1.0.0
+[1.0.0]: https://github.com/smaharajan/copilot-sessions/releases/tag/v1.0.0

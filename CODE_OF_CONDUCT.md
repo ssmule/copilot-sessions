@@ -60,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the maintainers responsible for enforcement by contacting
-[@ssmule](https://github.com/ssmule) privately through GitHub.
+[@smaharajan](https://github.com/smaharajan) privately through GitHub.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

@@ -8,14 +8,14 @@ what is deliberately left undone.
 
 **State at handover:** `main`, working tree clean, pushed, CI green. 478 tests,
 all passing. Python 3.10+, zero runtime dependencies. **Public, released as
-v1.0.0, and installable with `brew install ssmule/tap/copilot-sessions`.**
+v1.0.0, and installable with `brew install smaharajan/tap/copilot-sessions`.**
 
 No SHA is quoted here on purpose: a file cannot name the commit that contains
 it, and the previous handover spent its whole life one commit out of date.
 `git log -1` is never wrong.
 
 ```bash
-git clone https://github.com/ssmule/copilot-sessions.git
+git clone https://github.com/smaharajan/copilot-sessions.git
 cd copilot-sessions
 python3 -m unittest discover -s tests -q     # expect: Ran 478 tests ... OK
 pipx install 'ruff==0.15.22' && ruff check cs tests   # expect: All checks passed!
@@ -129,7 +129,7 @@ commit is signed and authored
 `sommaharajan <28564186+ssmule@users.noreply.github.com>`, and the identity is
 pinned repo-locally so the next commit matches it.
 
-The account has since been renamed (`ssmule` → `som-mns` → `smaharajan`), so
+The account has since been renamed (`ssmule` → `smaharajan`), so
 the repo-local pin is now `28564186+smaharajan@users.noreply.github.com`.
 Existing commits keep the old address and stay attributed regardless: GitHub
 resolves a noreply address on the `28564186+` account id, not on the username
@@ -188,7 +188,7 @@ of it, because each piece fails silently:
 
 
 **The Homebrew tap had the same problem, and was rebuilt the same way.**
-`ssmule/homebrew-tap` (public) serves `brew install ssmule/tap/copilot-sessions`.
+`smaharajan/homebrew-tap` (public) serves `brew install smaharajan/tap/copilot-sessions`.
 Its old history tracked a beads database carrying the work address in twelve
 objects, so it was backed up, rebuilt as a single signed commit and the
 repository deleted and recreated — a force-push alone would not have done it,
@@ -210,10 +210,10 @@ gone. Two consequences worth knowing:
   as "behind its remote counterpart" even though your commit is cleanly ahead.
   Either push `HEAD:main` or, better, work in an ordinary clone.
 - **Homebrew 6 will not install from an untrusted third-party tap.**
-  `brew tap ssmule/tap && brew install copilot-sessions` is refused outright;
-  the fully-qualified `brew install ssmule/tap/copilot-sessions` works cold,
+  `brew tap smaharajan/tap && brew install copilot-sessions` is refused outright;
+  the fully-qualified `brew install smaharajan/tap/copilot-sessions` works cold,
   because naming the tap is itself the trust signal. That is why the READMEs
-  lead with the long form. The escape hatch is `brew trust ssmule/tap`. Test
+  lead with the long form. The escape hatch is `brew trust smaharajan/tap`. Test
   install instructions from a genuinely untapped state or this stays invisible:
   once a machine has installed the formula the two-step appears to work.
 - **A rewrite of this repository breaks the formula.** Every tree changes, so
@@ -222,7 +222,7 @@ gone. Two consequences worth knowing:
   workflow only reacts to a new release, not to a rewritten tag, so this one is
   fixed by hand:
   ```bash
-  curl -sL https://github.com/ssmule/copilot-sessions/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
+  curl -sL https://github.com/smaharajan/copilot-sessions/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
   ```
 - **A noisy install is usually the machine, not the formula.** Two warnings look
   like defects in `cs` and are neither. Homebrew 6 lists *every* untrusted tap on

@@ -5,7 +5,7 @@
 **A terminal app for everything your GitHub Copilot CLI already remembers.**
 Browse, search, read, audit and resume any past session — without leaving the shell.
 
-[![ci](https://github.com/ssmule/copilot-sessions/actions/workflows/ci.yml/badge.svg)](https://github.com/ssmule/copilot-sessions/actions/workflows/ci.yml)
+[![ci](https://github.com/smaharajan/copilot-sessions/actions/workflows/ci.yml/badge.svg)](https://github.com/smaharajan/copilot-sessions/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-7c6cf2.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-64c8e6.svg)](https://www.python.org/)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-none-3ba55d.svg)](#-install)
@@ -200,7 +200,7 @@ Then install `cs` — **use the full `owner/tap/formula` name**, which taps and
 installs in one step:
 
 ```bash
-brew install ssmule/tap/copilot-sessions
+brew install smaharajan/tap/copilot-sessions
 ```
 
 Check it worked:
@@ -223,7 +223,7 @@ brew update && brew upgrade copilot-sessions
 
 ```bash
 brew uninstall copilot-sessions
-brew untap ssmule/tap          # optional: forget the tap too
+brew untap smaharajan/tap          # optional: forget the tap too
 ```
 
 > [!IMPORTANT]
@@ -232,15 +232,15 @@ brew untap ssmule/tap          # optional: forget the tap too
 > two-step fails:
 >
 > ```console
-> $ brew tap ssmule/tap && brew install copilot-sessions
-> Error: Refusing to load formula ssmule/tap/copilot-sessions from untrusted tap ssmule/tap.
+> $ brew tap smaharajan/tap && brew install copilot-sessions
+> Error: Refusing to load formula smaharajan/tap/copilot-sessions from untrusted tap smaharajan/tap.
 > ```
 >
 > The one-liner above avoids this — naming the tap explicitly is itself the
 > trust signal. If you would rather tap first, trust it once:
 >
 > ```bash
-> brew trust ssmule/tap
+> brew trust smaharajan/tap
 > brew install copilot-sessions
 > ```
 
@@ -250,7 +250,7 @@ brew untap ssmule/tap          # optional: forget the tap too
 Requires **Python 3.10+**. Standard library only, no dependencies.
 
 ```bash
-git clone https://github.com/ssmule/copilot-sessions.git
+git clone https://github.com/smaharajan/copilot-sessions.git
 cd copilot-sessions
 ./install.sh                 # symlinks `cs` into ~/.local/bin
 
